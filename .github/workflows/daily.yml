@@ -1,83 +1,64 @@
-
-name: Daily Crime Videos
-
+name: Kids Tamil Story Shorts
 on:
   schedule:
-    - cron: "7,37 6-17 * * *"   # wakes every 30 min, 11:37-23:07 IST; plan.py decides if a video is due
+    - cron: "7,37 3-16 * * *"
   workflow_dispatch:
     inputs:
       upload:
         description: "Upload to YouTube? (true/false)"
         default: "false"
       slot:
-        description: "Slot: 1 (12:00 mystery) or 2 (18:00 heist/fraud)"
+        description: "Slot 1, 2 or 3"
         default: "1"
-
 permissions:
   contents: write
-
 concurrency:
-  group: crime
+  group: kids-shorts
   cancel-in-progress: false
-
 jobs:
   make:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 60
     env:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-      LLM_MODEL: ${{ vars.LLM_MODEL }}
-      TTS_VOICE: ${{ vars.TTS_VOICE }}
-      YT_PRIVACY: ${{ vars.YT_PRIVACY }}
-      TTS_RATE: ${{ vars.TTS_RATE }}
-      TTS_PITCH: ${{ vars.TTS_PITCH }}
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+      LLM_MODEL: ${{ secrets.LLM_MODEL }}
       BGM_FILE: ${{ vars.BGM_FILE }}
       CHANNEL_NAME: ${{ vars.CHANNEL_NAME }}
-      CHANNEL_TAGLINE: ${{ vars.CHANNEL_TAGLINE }}
-      ELEVEN_API_KEY: ${{ secrets.ELEVEN_API_KEY }}
-      ELEVEN_VOICE_ID: ${{ vars.ELEVEN_VOICE_ID }}
+      MADE_FOR_KIDS: ${{ vars.MADE_FOR_KIDS }}
+      YT_PRIVACY: ${{ vars.YT_PRIVACY }}
+      PUPPETS: ${{ vars.PUPPETS }}
       YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
-      UPLOAD: ${{ github.event_name == 'schedule' && 'true' || github.event.inputs.upload }}
     steps:
       - uses: actions/checkout@v4
-      - name: Plan slot
-        id: plan
+      - id: plan
+        run: python plan.py
         env:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_SLOT: ${{ github.event.inputs.slot }}
-        run: python3 plan.py
-      - uses: actions/setup-python@v5
-        if: steps.plan.outputs.slot != ''
+      - if: steps.plan.outputs.slot != ''
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install system packages
-        if: steps.plan.outputs.slot != ''
+      - if: steps.plan.outputs.slot != ''
         run: |
-          sudo apt-get update
+          sudo apt-get update -y
           sudo apt-get install -y ffmpeg fonts-noto-core fonts-dejavu-core libass9
-      - name: Install Python packages
-        if: steps.plan.outputs.slot != ''
-        run: pip install -r requirements.txt
-      - name: Make video
-        if: steps.plan.outputs.slot != ''
+          pip install -r requirements.txt
+      - if: steps.plan.outputs.slot != ''
+        run: python pipeline.py
         env:
           SLOT: ${{ steps.plan.outputs.slot }}
-        run: python pipeline.py
-      - uses: actions/upload-artifact@v4
-        if: steps.plan.outputs.slot != ''
+          UPLOAD: ${{ github.event_name == 'schedule' || github.event.inputs.upload == 'true' }}
+      - if: always() && steps.plan.outputs.slot != ''
+        uses: actions/upload-artifact@v4
         with:
-          name: video
+          name: kids-short
           path: out
-          if-no-files-found: warn
-      - name: Save history
-        if: ${{ always() && steps.plan.outputs.slot != '' && (github.event_name == 'schedule' || github.event.inputs.upload == 'true') }}
+      - if: always() && steps.plan.outputs.slot != '' && (github.event_name == 'schedule' || github.event.inputs.upload == 'true')
         run: |
-          git config user.name "crime-bot"
-          git config user.email "bot@users.noreply.github.com"
+          git config user.name "bot"; git config user.email "bot@users.noreply.github.com"
           git add history.json
-          git diff --cached --quiet || git commit -m "update history"
-          git pull --rebase
-          git push
+          git diff --cached --quiet || (git commit -m "update history" && git pull --rebase && git push)
