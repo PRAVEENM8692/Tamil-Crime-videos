@@ -33,9 +33,9 @@ CHALLENGES = ["something precious gets lost", "a friendly contest", "preparing f
 
 # voice styles -> (edge voice, rate, pitch). Child-like / big / squeaky voices come from pitch + speed shifts.
 STYLES = {
-    "narrator":       ("ta-IN-PallaviNeural", "+0%",  "+0Hz"),
-    "boy":            ("ta-IN-ValluvarNeural", "+0%", "+16Hz"),
-    "girl":           ("ta-IN-PallaviNeural", "+0%",  "+12Hz"),
+    "narrator":       ("ta-IN-PallaviNeural", "+6%",  "+2Hz"),
+    "boy":            ("ta-IN-ValluvarNeural", "+8%", "+16Hz"),
+    "girl":           ("ta-IN-PallaviNeural", "+8%",  "+12Hz"),
     "old_man":        ("ta-LK-KumarNeural",   "-6%",  "-6Hz"),
     "old_woman":      ("ta-SG-VenbaNeural",   "-4%",  "-2Hz"),
     "big_deep":       ("ta-MY-SuryaNeural",   "-4%",  "-14Hz"),
@@ -173,7 +173,7 @@ Return JSON only:
 title (Tamil, cute and curious, max 45 chars),
 description (Tamil, 2 short lines),
 tags (8 strings),
-moral (Tamil, ONE short sentence),
+moral (Tamil, ONE short sentence in everyday spoken Tamil, like a mum saying it),
 setting_look (English, one sentence describing the place's look),
 characters: list of 2 to 4 objects, each with name (short Tamil name), look (English: species/age, colours, clothes, adorable 3D cartoon look) and voice (choose one of: boy, girl, old_man, old_woman, big_deep, squeaky, cheerful_man, cheerful_woman; use different voices for different characters; big animals use big_deep, tiny animals squeaky, kids boy/girl),
 plot (English, 60-90 words: beginning, small problem, how it is solved, moral).""")
@@ -197,7 +197,7 @@ Moral (the Narrator says it in the LAST beat): {outline['moral']}
 Characters (use EXACTLY these names as speakers, plus "Narrator"): {', '.join(names)}
 Looks: {looks}
 Setting: {outline['setting_look']}
-Style: cheerful, simple spoken Tamil (Tamil script) a small child understands, very short lines (max 10 words), lively dialogue between the characters, a little humour, sound words like "டமால்!" are welcome. The FIRST beat must be an exciting hook (a question or a surprise).
+Style: write the way Tamil children and mums actually talk AT HOME - everyday colloquial spoken Tamil (பேச்சு வழக்கு, in Tamil script), NEVER literary/book Tamil (no செந்தமிழ், no "நான் செல்கிறேன்", no "வாருங்கள்", no "அன்புடன்"). Use forms like: "நான் போறேன்", "வா டா", "வாடி", "என்னடா ஆச்சு?", "அய்யோ!", "ஐ! சூப்பர்!", "இங்க பாரு", "சொல்லு சொல்லு", "வேணாம்", "இல்லடா", "ஏன்டா அழற?", "அம்மா!", "ஆமாம்ல?", "சரி சரி", "பாவம்", "நல்லா இருக்கு". The Narrator also sounds like a friendly akka/anna telling a story to a kid, not a news reader. Very short lines (max 8 words), lots of small reactions (ஹா ஹா!, அச்சச்சோ!, ஹை!), lively back-and-forth between characters, a little humour, sound words like "டமால்!" are welcome. The FIRST beat must be an exciting hook (a question or a surprise).
 Return JSON only: beats = list of exactly 8 beats in order. Each beat has:
   lines: list of 1 or 2 objects {{"speaker": name or "Narrator", "text": Tamil line}},
   scene: ONE English image prompt showing exactly what happens in that beat (cute bright 3D cartoon, the characters' looks from the list, happy colourful, child-friendly, no text).
@@ -209,7 +209,7 @@ Total across all lines: 105-130 Tamil words.""", check=make_check(names))
     return outline
 
 # ====================== VOICE ======================
-CTA_TEXT = "கதை பிடிச்சிருந்தா லைக் பண்ணுங்க, சப்ஸ்கிரைப் பண்ணுங்க!"
+CTA_TEXT = "கதை பிடிச்சிருந்தா லைக் பண்ணுங்க, சப்ஸ்கிரைப் பண்ணுங்க, பை பை!"
 
 def chunk_long(words, mx=12):
     parts = []
@@ -346,17 +346,19 @@ def logo_events(L):
 
 # ====================== IMAGES ======================
 STYLE = ", cute 3D animated cartoon style like a children's movie, bright vibrant colours, soft warm lighting, big friendly expressive eyes, happy mood, child-friendly, vertical composition, no text"
-def get_image(prompt, path, prev, size=(720, 1280), style=True):
-    url = "https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt + (STYLE if style else ", cute 3D animated cartoon style, bright colours, big friendly eyes")) + f"?width={size[0]}&height={size[1]}&nologo=true&seed={random.randint(1,999999)}"
+STORY_SEED = random.randint(1, 999999)
+def get_image(prompt, path, prev, size=(720, 1280), style=True, seed=None):
+    url = "https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt + (STYLE if style else ", cute 3D animated cartoon style, bright colours, big friendly eyes")) + f"?width={size[0]}&height={size[1]}&nologo=true&model=flux&seed={seed if seed else random.randint(1,999999)}"
     for i in range(5):
         try:
             r = requests.get(url, timeout=120)
             if r.status_code == 200 and len(r.content) > 5000 and r.headers.get("content-type", "").startswith("image"):
-                open(path, "wb").write(r.content); return
+                open(path, "wb").write(r.content); return True
         except Exception as e: print("img retry", e)
         time.sleep(4 * (i + 1))
-    if prev and os.path.exists(prev): open(path, "wb").write(open(prev, "rb").read())
-    else: run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=0x2a6fdb:s={size[0]}x{size[1]}", "-frames:v", "1", path])
+    if prev and os.path.exists(prev): open(path, "wb").write(open(prev, "rb").read()); return True
+    run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=0x2a6fdb:s={size[0]}x{size[1]}", "-frames:v", "1", path])
+    return False
 
 
 # ====================== PUPPET ANIMATION ======================
@@ -424,13 +426,15 @@ def overlay_chars(clip_in, clip_out, beat, clip_start, F, cast, chars_ok):
 VENC = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-r", str(FPS), "-video_track_timescale", "15360", "-an"]
 
 def motion(kind, F):
-    x = "iw/2-(iw/zoom/2)"; y = "ih/2-(ih/zoom/2)"
-    if kind == 0: z = f"1+0.16*on/{F}+0.012*sin(on/5)"
-    elif kind == 1: z = f"1.18-0.16*on/{F}+0.012*sin(on/5)"
-    elif kind == 2: z = "1.15"; x = f"(iw-iw/zoom)*on/{F}"
-    elif kind == 3: z = "1.15"; x = f"(iw-iw/zoom)*(1-on/{F})"
-    elif kind == 4: z = f"1+0.2*on/{F}+0.01*sin(on/4)"; x = "iw*0.5-(iw/zoom)*0.5"; y = "ih*0.4-(ih/zoom)*0.4"
-    else: z = "1.14"; y = f"(ih-ih/zoom)*on/{F}"
+    """Gentle 'living picture' motion: slow push/pull + soft sway + breathing, never jumpy."""
+    sway_x = "iw*0.014*sin(on/17)"; sway_y = "ih*0.009*sin(on/23)"
+    x = f"iw/2-(iw/zoom/2)+{sway_x}"; y = f"ih/2-(ih/zoom/2)+{sway_y}"
+    if kind == 0: z = f"1.08+0.10*on/{F}+0.010*sin(on/7)"
+    elif kind == 1: z = f"1.20-0.10*on/{F}+0.010*sin(on/7)"
+    elif kind == 2: z = f"1.12+0.010*sin(on/7)"; x = f"(iw-iw/zoom)*on/{F}+{sway_x}"
+    elif kind == 3: z = f"1.12+0.010*sin(on/7)"; x = f"(iw-iw/zoom)*(1-on/{F})+{sway_x}"
+    elif kind == 4: z = f"1.08+0.14*on/{F}+0.010*sin(on/6)"; x = f"iw*0.5-(iw/zoom)*0.5+{sway_x}"; y = f"ih*0.42-(ih/zoom)*0.42+{sway_y}"
+    else: z = f"1.12+0.010*sin(on/7)"; y = f"(ih-ih/zoom)*on/{F}+{sway_y}"
     return f"zoompan=z='{z}':x='{x}':y='{y}':d={F}:s={W}x{H}:fps={FPS}"
 
 def render_clip(a):
@@ -441,14 +445,19 @@ def render_clip(a):
     return out
 
 def make_story(d, beats, story_frames, workdir):
-    chars_ok = make_characters(d, workdir) if env("PUPPETS", "true") != "false" else {}
+    chars_ok = make_characters(d, workdir) if env("PUPPETS", "false") == "true" else {}
     puppet = bool(chars_ok); order = [c["name"] for c in d["chars"] if c["name"] in chars_ok]
     print("Puppet mode:", puppet, "| cutouts:", list(chars_ok))
-    imgs = []; prev = None
+    imgs = []; good = []; prev = None
     for i, b in enumerate(beats):
         p = os.path.join(workdir, f"img{i}.jpg")
         sc = (f"{d['setting_look']}, {b['scene']}, EMPTY background scenery only, no people, no animals, no characters, wide open ground in the lower middle" if puppet else b["scene"])
-        get_image(sc, p, prev); imgs.append(p); prev = p
+        ok = get_image(sc + ", same characters and same art style in every scene", p, prev, seed=STORY_SEED + (0 if puppet else i)); good.append(ok)
+        imgs.append(p); prev = p if ok else prev
+    first_good = next((imgs[i] for i, g in enumerate(good) if g), None)       # never show the blue placeholder frame
+    if first_good:
+        for i, g in enumerate(good):
+            if not g: open(imgs[i], "wb").write(open(first_good, "rb").read())
     hf = int(OV * FPS / 2); N = len(beats); jobs = []
     for i, b in enumerate(beats):
         n = b["f1"] - b["f0"]
@@ -588,7 +597,7 @@ def make_video(d, workdir):
             jobs.append({"text": l["text"], "wav": l["wav"], "voice": v, "rate": r, "pitch": p})
     nv, nr, np_ = STYLES["narrator"]
     cta = {"speaker": "Narrator", "text": CTA_TEXT, "wav": os.path.join(workdir, "cta.wav")}
-    jobs.append({"text": CTA_TEXT, "wav": cta["wav"], "voice": nv, "rate": "+0%", "pitch": np_})
+    jobs.append({"text": CTA_TEXT, "wav": cta["wav"], "voice": nv, "rate": "+6%", "pitch": np_})
     tts_batch(jobs)
     for b in beats:
         for l in b["lines"]: l["dur"] = wav_dur(l["wav"])
