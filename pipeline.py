@@ -124,7 +124,7 @@ def norm_lines(raw, names):
             sp = txt_of(it.get("speaker") or it.get("name") or it.get("character") or "Narrator")
             tx = txt_of(it.get("text") or it.get("line") or it.get("voiceover") or it.get("dialogue"))
         else:
-            s = txt_of(it); m = re.match(r"^\s*([^:锛歖{1,30})[:锛歖\s*(.+)$", s)
+            s = txt_of(it); m = re.match(r"^\s*([^:：]{1,30})[:：]\s*(.+)$", s)
             sp, tx = (m.group(1), m.group(2)) if m else ("Narrator", s)
         if not tx: continue
         low = sp.strip().lower()
@@ -141,6 +141,10 @@ def make_check(names):
         if not isinstance(b, list) or len(b) < 6: return "Return 8 beats."
         for x in b:
             if not isinstance(x, dict) or not norm_lines(x.get("lines"), names) or not txt_of(x.get("scene")): return "Every beat needs lines and a scene."
+        alltxt = " ".join(l["text"] for x in b for l in norm_lines(x.get("lines"), names))
+        letters = [c for c in alltxt if c.isalpha()]
+        if letters and sum("\u0b80" <= c <= "\u0bff" for c in letters) / len(letters) < 0.85:
+            return "Every spoken line MUST be written in Tamil script (தமிழ்) only - no English or Tanglish words."
         n = count_words(d, names)
         if n < (60 if late else 85): return f"Your previous answer had only {n} Tamil words in total. Write 105 to 130 Tamil words across all lines."
         if n > 175: return f"Too long ({n} words). Keep it to 105-130 Tamil words in total."
@@ -182,7 +186,7 @@ plot (English, 60-90 words: beginning, small problem, how it is solved, moral)."
     chars = []
     for c in (outline.get("characters") if isinstance(outline.get("characters"), list) else []):
         if isinstance(c, dict) and txt_of(c.get("name")): chars.append({"name": txt_of(c["name"]), "look": txt_of(c.get("look")) or "cute cartoon character", "voice": c.get("voice")})
-    if len(chars) < 1: chars = [{"name": "喈曕瘉喈熰瘝喈熰", "look": "cute little cartoon animal", "voice": "boy"}]
+    if len(chars) < 1: chars = [{"name": "குட்டி", "look": "cute little cartoon animal", "voice": "boy"}]
     styles, colors = assign_voices(chars)
     names = [c["name"] for c in chars]
     looks = "; ".join(f"{c['name']} = {c['look']}" for c in chars)
@@ -193,7 +197,7 @@ Moral (the Narrator says it in the LAST beat): {outline['moral']}
 Characters (use EXACTLY these names as speakers, plus "Narrator"): {', '.join(names)}
 Looks: {looks}
 Setting: {outline['setting_look']}
-Style: cheerful, simple spoken Tamil (Tamil script) a small child understands, very short lines (max 10 words), lively dialogue between the characters, a little humour, sound words like "喈熰喈距喁�!" are welcome. The FIRST beat must be an exciting hook (a question or a surprise).
+Style: cheerful, simple spoken Tamil (Tamil script) a small child understands, very short lines (max 10 words), lively dialogue between the characters, a little humour, sound words like "டமால்!" are welcome. The FIRST beat must be an exciting hook (a question or a surprise).
 Return JSON only: beats = list of exactly 8 beats in order. Each beat has:
   lines: list of 1 or 2 objects {{"speaker": name or "Narrator", "text": Tamil line}},
   scene: ONE English image prompt showing exactly what happens in that beat (cute bright 3D cartoon, the characters' looks from the list, happy colourful, child-friendly, no text).
@@ -205,7 +209,7 @@ Total across all lines: 105-130 Tamil words.""", check=make_check(names))
     return outline
 
 # ====================== VOICE ======================
-CTA_TEXT = "喈曕喁� 喈喈熰喈氞瘝喈氞喈班瘉喈ㄠ瘝喈む 喈侧瘓喈曕瘝 喈喁嵿喁佮畽喁嵿畷, 喈氞喁嵿喁嵿畷喈苦喁堗喁� 喈喁嵿喁佮畽喁嵿畷!"
+CTA_TEXT = "கதை பிடிச்சிருந்தா லைக் பண்ணுங்க, சப்ஸ்கிரைப் பண்ணுங்க!"
 
 def chunk_long(words, mx=12):
     parts = []
@@ -463,7 +467,8 @@ def make_story(d, beats, story_frames, workdir):
     ass.append(dlg(2, 0.0, 3.4, "Title", tg(r"\an8\pos(540,300)\fad(150,450)\fscx88\fscy88\t(0,300,\fscx100\fscy100)") + d["title"]))
     for s in allines:
         if s["speaker"] != "Narrator":
-            ass.append(dlg(1, s["start"], s["end"] + 0.1, "Chip", tg(rf"\an2\pos(540,1700)\3c&H{d["colors"][s["speaker"]]}&\bord18\1c&H202020&") + " " + s["speaker"] + " "))
+            chip_col = d["colors"][s["speaker"]]
+            ass.append(dlg(1, s["start"], s["end"] + 0.1, "Chip", tg(rf"\an2\pos(540,1700)\3c&H{chip_col}&\bord18\1c&H202020&") + " " + s["speaker"] + " "))
     assf = os.path.join(workdir, "story.ass"); open(assf, "w", encoding="utf-8").write("\n".join(ass) + "\n")
     fc = []; last = "0:v"
     for i in range(1, N):
@@ -486,15 +491,15 @@ def make_outro(workdir, last_img, cta, outro_frames):
     L = outro_frames / FPS; ass = [ass_head()]
     c1, c2, c3 = outro_clicks(cta)
     ass += logo_events(L)
-    ass.append(txt(2, 0.05, L, "Tam", 540, 560, "00F0FF", 84, "喈喈熰喈氞瘝喈氞喈班瘉喈曕瘝喈曕?", r"\fad(200,200)\fscx80\fscy80\t(0,300,\fscx100\fscy100)"))
-    ass.append(txt(2, 0.05, L, "Txt", 540, 700, "FFFFFF", 70, "LIKE  鈥�  SUBSCRIBE", r"\fad(200,200)"))
+    ass.append(txt(2, 0.05, L, "Tam", 540, 560, "00F0FF", 84, "பிடிச்சிருக்கா?", r"\fad(200,200)\fscx80\fscy80\t(0,300,\fscx100\fscy100)"))
+    ass.append(txt(2, 0.05, L, "Txt", 540, 700, "FFFFFF", 70, "LIKE  •  SUBSCRIBE", r"\fad(200,200)"))
     LX, SX, BX, Y = 255, 640, 905, 900
     for (a, b, col, label, icon) in [(0.05, c1, "3A3A3A", "LIKE", "FFFFFF"), (c1, L, "FFA63E", "LIKED", "FFFFFF")]:
         ex = r"\fad(200,0)" if a == 0.05 else r"\fscx112\fscy112\t(0,200,\fscx100\fscy100)"
         ass.append(shape(1, a, b, LX, Y, rrect(300, 120, 60), col, ex))
         ass.append(shape(2, a, b, LX - 78, Y - 3, THUMB, icon, ex))
         ass.append(txt(3, a, b, "Txt", LX + 36, Y, "FFFFFF", 44, label, ex))
-    for (a, b, col, label, size) in [(0.05, c2, "0000FF", "SUBSCRIBE", 44), (c2, L, "4A4A4A", "SUBSCRIBED 鉁�", 34)]:
+    for (a, b, col, label, size) in [(0.05, c2, "0000FF", "SUBSCRIBE", 44), (c2, L, "4A4A4A", "SUBSCRIBED ✓", 34)]:
         ex = r"\fad(200,0)" if a == 0.05 else r"\fscx108\fscy108\t(0,200,\fscx100\fscy100)"
         ass.append(shape(1, a, b, SX, Y, rrect(430, 120, 60), col, ex))
         ass.append(txt(3, a, b, "Txt", SX, Y, "FFFFFF", size, label, ex))
@@ -622,7 +627,7 @@ def make_thumbnail(d, img, workdir):
     ass.append(shape(1, 0, 5, 540, 1560, rrect(960, 300, 70), "00B4FF", r"\3c&HFFFFFF&\bord10"))
     ass.append(dlg(2, 0, 5, "Tam", tg(r"\an5\pos(540,1560)\fs100\c&HFFFFFF&\3c&H8A2BE2&\bord9\shad0\q0\fscx100") + d["title"]))
     ass.append(shape(1, 0, 5, 880, 330, circle(300), "00E5FF", r"\3c&HFFFFFF&\bord8\frz12"))
-    ass.append(txt(2, 0, 5, "Tam", 880, 330, "8A2BE2", 78, "喈曕喁�!", r"\bord0\frz12"))
+    ass.append(txt(2, 0, 5, "Tam", 880, 330, "8A2BE2", 78, "கதை!", r"\bord0\frz12"))
     af = os.path.join(workdir, "thumb.ass"); open(af, "w", encoding="utf-8").write("\n".join(ass) + "\n")
     out = os.path.join(OUT, "thumbnail.jpg")
     r = subprocess.run(["ffmpeg", "-y", "-i", img, "-vf",
@@ -644,7 +649,7 @@ def upload(path, d, thumb=None):
         "client_id": env("YT_CLIENT_ID"), "client_secret": env("YT_CLIENT_SECRET"),
         "refresh_token": env("YT_REFRESH_TOKEN"), "grant_type": "refresh_token"}, timeout=60).json()
     if "access_token" not in tok: raise SystemExit("YouTube auth failed: " + json.dumps(tok))
-    desc = d["description"] + f"\n\nMoral / 喈ㄠ瘈喈む: {d['moral']}\n\n喈囙喁� 喈掄喁� 喈曕喁嵿喈┼瘓喈曕瘝 喈曕瘉喈脆喁嵿喁堗畷喁� 喈曕喁�. AI animated story for kids.\n#Shorts #TamilKidsStories #KidsStories #TamilStories"
+    desc = d["description"] + f"\n\nMoral / நீதி: {d['moral']}\n\nஇது ஒரு கற்பனைக் குழந்தைக் கதை. AI animated story for kids.\n#Shorts #TamilKidsStories #KidsStories #TamilStories"
     kids = env("MADE_FOR_KIDS", "true").lower() != "false"
     meta = {"snippet": {"title": (d["title"][:88] + " #Shorts"), "description": desc, "tags": d.get("tags", [])[:12] + ["Shorts", "Tamil kids stories"],
                         "categoryId": "1", "defaultLanguage": "ta", "defaultAudioLanguage": "ta"},
