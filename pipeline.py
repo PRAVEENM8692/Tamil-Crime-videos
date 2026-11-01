@@ -102,14 +102,22 @@ def llm_json(prompt, check=None, retries=7):
             print("llm attempt failed:", e); time.sleep(3)
     raise SystemExit("LLM failed")
 
+def txt_of(x):
+    """LLM output can be str, dict, list... always return plain text."""
+    if x is None: return ""
+    if isinstance(x, str): return x.strip()
+    if isinstance(x, dict): return " - ".join(t for t in (txt_of(v) for v in x.values()) if t)
+    if isinstance(x, (list, tuple)): return "; ".join(t for t in (txt_of(v) for v in x) if t)
+    return str(x)
+
 def beat_words(d):
-    return sum(len(b.get("voiceover", "").split()) for b in d.get("beats", []) if isinstance(b, dict))
+    return sum(len(txt_of(b.get("voiceover", "")).split()) for b in d.get("beats", []) if isinstance(b, dict))
 
 def check_part(d, late):
     b = d.get("beats")
     if not isinstance(b, list) or len(b) < 4: return "Return 5 or 6 beats."
     for x in b:
-        if not isinstance(x, dict) or not x.get("voiceover") or not x.get("scene"): return "Every beat needs both voiceover and scene."
+        if not isinstance(x, dict) or not txt_of(x.get("voiceover")) or not txt_of(x.get("scene")): return "Every beat needs both voiceover and scene."
     n = beat_words(d)
     if n < (60 if late else 90): return f"Your previous answer had only {n} Tamil words in total. Write 100 to 125 Tamil words across the beats."
     if n > 160: return f"Too long ({n} words). Keep it to 100-125 Tamil words in total."
@@ -126,9 +134,15 @@ Return JSON only: title (Tamil, curiosity-driven, max 80 chars), description (Ta
 characters (list of 5 short English descriptions: investigator, victim, 3 suspects - consistent looks, for image prompts),
 setting (one English sentence describing the place's look), plot (English, 120-180 words: full story incl. culprit, motive, clue, twist, how caught),
 thumbnail_prompt (English, dramatic cinematic 3D cartoon scene, no text).""")
+    for k in ("title", "description", "setting", "plot", "thumbnail_prompt"):
+        outline[k] = txt_of(outline.get(k))
+    if not outline["title"] or not outline["plot"]: raise SystemExit("Outline missing title/plot")
+    outline["thumbnail_prompt"] = outline["thumbnail_prompt"] or ("dramatic cinematic crime scene, " + outline["setting"])
+    tg_ = outline.get("tags", [])
+    outline["tags"] = [txt_of(t) for t in tg_] if isinstance(tg_, list) else [t.strip() for t in txt_of(tg_).replace("#", "").split(",") if t.strip()]
     if max([difflib.SequenceMatcher(None, outline["title"], t).ratio() for t in h["titles"]] or [0]) > 0.7:
         return make_script(h)
-    chars = "; ".join(outline["characters"]) if isinstance(outline["characters"], list) else str(outline["characters"])
+    chars = "; ".join(t for t in (txt_of(c) for c in (outline.get("characters") if isinstance(outline.get("characters"), list) else [outline.get("characters")])) if t)
     parts = []; recap = ""
     for i, (name, beat) in enumerate(CHAPTERS):
         d = llm_json(f"""Write part {i+1} of {len(CHAPTERS)} ("{name}": {beat}) of a Tamil crime-story narration, as a series of BEATS.
@@ -141,8 +155,8 @@ Return JSON only: beats = list of 5 or 6 objects, in order. Each beat has:
   voiceover: 2 short Tamil sentences (about 18-22 words) narrating one moment,
   scene: ONE English image prompt that shows EXACTLY what that voiceover describes (cinematic 3D animated cartoon, dramatic lighting, mention the character looks from the list, no text, no logos, no real people).
 Total across all beats: 100-125 Tamil words. Also return recap (one English sentence of what happened in this part).""", check=check_part)
-        beats = [{"voiceover": b["voiceover"].strip(), "scene": b["scene"].strip()} for b in d["beats"][:6]]
-        parts.append({"name": name, "beats": beats}); recap += " " + str(d.get("recap", ""))
+        beats = [{"voiceover": txt_of(b["voiceover"]), "scene": txt_of(b["scene"])} for b in d["beats"][:6]]
+        parts.append({"name": name, "beats": beats}); recap += " " + txt_of(d.get("recap"))
     outline["parts"] = parts; outline["fp"] = "|".join(combo)
     return outline
 
