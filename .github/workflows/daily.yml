@@ -22,13 +22,20 @@ concurrency:
 jobs:
   make:
     runs-on: ubuntu-latest
-    timeout-minutes: 170
+    timeout-minutes: 120
     env:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
       LLM_MODEL: ${{ vars.LLM_MODEL }}
       TTS_VOICE: ${{ vars.TTS_VOICE }}
       YT_PRIVACY: ${{ vars.YT_PRIVACY }}
+      TTS_RATE: ${{ vars.TTS_RATE }}
+      TTS_PITCH: ${{ vars.TTS_PITCH }}
+      BGM_FILE: ${{ vars.BGM_FILE }}
+      CHANNEL_NAME: ${{ vars.CHANNEL_NAME }}
+      CHANNEL_TAGLINE: ${{ vars.CHANNEL_TAGLINE }}
+      ELEVEN_API_KEY: ${{ secrets.ELEVEN_API_KEY }}
+      ELEVEN_VOICE_ID: ${{ vars.ELEVEN_VOICE_ID }}
       YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
