@@ -20,3 +20,12 @@ Actions > Daily Crime Video > Run workflow, `upload=false`. Download the `video`
 Optional: add royalty-free `assets/bgm.mp3` for background music.
 
 All stories are fictional.
+
+
+## Video format (4-5 min, 1920x1080)
+4.5 s animated logo intro -> 6 chapters / 36 scenes (every picture is generated from the exact narration beat it illustrates) -> ~9 s outro with animated LIKE, SUBSCRIBE and bell buttons.
+Captions and scene changes are timed from the measured length of every spoken sentence, so they cannot drift.
+
+Optional files in `assets/`: any `.mp3` for background music (ducks under the voice), and `logo.png` (your channel logo, used in the intro; without it the intro shows the channel name as text).
+Optional repo variables: `CHANNEL_NAME`, `CHANNEL_TAGLINE`, `TTS_RATE` (default +8%), `TTS_PITCH` (default -2Hz), `BGM_FILE`.
+Optional ElevenLabs voice (paid plan needed for daily use): secret `ELEVEN_API_KEY` + variable `ELEVEN_VOICE_ID`.
