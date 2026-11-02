@@ -6,7 +6,7 @@ import requests
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(ROOT, "out"); os.makedirs(OUT, exist_ok=True)
 HIST = os.path.join(ROOT, "history.json")
-W, H, FPS, SR = 1080, 1920, 30, 44100      # YouTube Shorts: vertical 9:16
+W, H, FPS, SR = 1920, 1080, 24, 44100      # normal YouTube video: 16:9 full HD
 OV = 0.3                                    # cross-dissolve seconds
 
 def env(k, d=""):
@@ -44,6 +44,26 @@ STYLES = {
     "cheerful_woman": ("ta-MY-KaniNeural",    "+2%",  "+8Hz"),
 }
 STYLE_ORDER = ["boy", "girl", "old_man", "old_woman", "big_deep", "squeaky", "cheerful_man", "cheerful_woman"]
+# Puter (Gemini TTS) voices per character style: (voice name, plain-English acting note). Override any with
+# the PUTER_VOICE_MAP variable, e.g. {"narrator": "Kore", "boy": "Puck"}. NARRATOR_VOICE sets only the narrator.
+PUTER_VOICES = {
+    "narrator":       ("Charon",        "a warm friendly storyteller telling a bedtime story to a small child, clear and a little slow"),
+    "boy":            ("Puck",          "a cheerful excited little boy"),
+    "girl":           ("Leda",          "a sweet playful little girl"),
+    "old_man":        ("Algieba",       "a kind old grandfather, slow and gentle"),
+    "old_woman":      ("Gacrux",        "a loving grandmother, soft and gentle"),
+    "big_deep":       ("Algenib",       "a big deep friendly voice, slow and booming but kind"),
+    "squeaky":        ("Sadachbia",     "a tiny squeaky high-pitched voice, quick and funny"),
+    "cheerful_man":   ("Zubenelgenubi", "a cheerful friendly young man"),
+    "cheerful_woman": ("Aoede",         "a cheerful friendly young woman"),
+}
+def puter_voice(style):
+    v, note = PUTER_VOICES.get(style, PUTER_VOICES["narrator"])
+    try: v = json.loads(env("PUTER_VOICE_MAP", "{}")).get(style, v)
+    except Exception: pass
+    if style == "narrator" and env("NARRATOR_VOICE"): v = env("NARRATOR_VOICE")
+    return v, note
+
 COLORS = ["00F0FF", "B469FF", "FFE500", "0098FF", "5CFF7C", "FF8AE8"]     # ASS BGR: yellow, pink, cyan, orange, green, lilac
 NARR_COLOR = "FFFFFF"
 
@@ -135,10 +155,18 @@ def norm_lines(raw, names):
 def count_words(d, names):
     return sum(len(l["text"].split()) for b in d.get("beats", []) if isinstance(b, dict) for l in norm_lines(b.get("lines"), names))
 
-def make_check(names):
+ACTS = [
+    ("Act 1 - the start", "Meet the characters in the place. Open with an exciting hook (a question or a surprise). Show what they love."),
+    ("Act 2 - the problem", "A small problem begins. Ask the kids watching ONE easy question in a Narrator line (for example: 'நீங்களா இருந்தா என்ன பண்ணுவீங்க?')."),
+    ("Act 3 - trying and funny mistakes", "They try to fix it, with funny mistakes and happy silly moments. Keep it light."),
+    ("Act 4 - the answer", "A kind idea or help arrives and the problem is solved. Ask the kids one more tiny question or to count/spot something in the picture."),
+    ("Act 5 - happy ending", "Everyone is happy. Last beats: the Narrator says the moral in one short sentence, then a warm goodbye line. Do not say the like/subscribe words, that is added later."),
+]
+
+def make_check(names, lo=70, hi=150):
     def check(d, late):
         b = d.get("beats")
-        if not isinstance(b, list) or len(b) < 6: return "Return 8 beats."
+        if not isinstance(b, list) or len(b) < 5: return "Return 7 beats."
         for x in b:
             if not isinstance(x, dict) or not norm_lines(x.get("lines"), names) or not txt_of(x.get("scene")): return "Every beat needs lines and a scene."
         alltxt = " ".join(l["text"] for x in b for l in norm_lines(x.get("lines"), names))
@@ -146,8 +174,8 @@ def make_check(names):
         if letters and sum("\u0b80" <= c <= "\u0bff" for c in letters) / len(letters) < 0.85:
             return "Every spoken line MUST be written in Tamil script (தமிழ்) only - no English or Tanglish words."
         n = count_words(d, names)
-        if n < (60 if late else 85): return f"Your previous answer had only {n} Tamil words in total. Write 105 to 130 Tamil words across all lines."
-        if n > 175: return f"Too long ({n} words). Keep it to 105-130 Tamil words in total."
+        if n < (lo - 25 if late else lo): return f"Your previous answer had only {n} Tamil words in total. Write {lo + 15} to {hi - 30} Tamil words across all lines."
+        if n > hi + 30: return f"Too long ({n} words). Keep it to {lo + 15}-{hi - 30} Tamil words in total."
         return None
     return check
 
@@ -163,10 +191,16 @@ def assign_voices(chars):
     colors["Narrator"] = NARR_COLOR
     return styles, colors
 
+STYLE_RULES = """LANGUAGE AND TONE (very important):
+- Write the way a loving akka/amma tells a story to a 3-7 year old at home: very simple everyday spoken Tamil (பேச்சு வழக்கு) in Tamil script. NEVER literary/book Tamil, no big or formal words, no long speeches.
+- Short sentences, 3 to 8 words. Easy words a 4-year-old knows. Repeat a cute catchphrase or sound now and then (like "டும் டும் டும்!", "ஹை ஹை!").
+- The Narrator tells most of the story in a friendly, playful way and sometimes talks to the kids directly ("பாத்தீங்களா?", "சொல்லுங்க பாப்போம்!"). Characters speak only short, lively, funny lines - no stiff or serious conversations, no lecturing.
+- Use small reactions (ஹா ஹா!, அச்சச்சோ!, ஐ!) and sound words (டமால்!, சல சல). Nothing scary, no violence, no sad ending."""
+
 def make_script(h):
     combo = pick_combo(h); code = random.randint(1000, 9999)
     avoid = "; ".join(h["titles"][-40:]) or "none"
-    outline = llm_json(f"""You create ORIGINAL, gentle, funny children's stories in Tamil for kids aged 3-8 (YouTube Short, about 50 seconds). No violence, nothing scary, no real brands or famous cartoon characters.
+    outline = llm_json(f"""You create ORIGINAL, gentle, funny children's stories in Tamil for kids aged 3-7 (a YouTube video of about 4 minutes). Nothing scary, no real brands or famous cartoon characters.
 Ingredients (all must appear): Moral theme: {combo[0]} | Hero: {combo[1]} | Place: {combo[2]} | Situation: {combo[3]} | Variation code: {code}
 Do NOT repeat these earlier titles/ideas: {avoid}
 Return JSON only:
@@ -176,7 +210,7 @@ tags (8 strings),
 moral (Tamil, ONE short sentence in everyday spoken Tamil, like a mum saying it),
 setting_look (English, one sentence describing the place's look),
 characters: list of 2 to 4 objects, each with name (short Tamil name), look (English: species/age, colours, clothes, adorable 3D cartoon look) and voice (choose one of: boy, girl, old_man, old_woman, big_deep, squeaky, cheerful_man, cheerful_woman; use different voices for different characters; big animals use big_deep, tiny animals squeaky, kids boy/girl),
-plot (English, 60-90 words: beginning, small problem, how it is solved, moral).""")
+plot (English, 150-200 words, in 5 parts: start, problem, funny tries, the answer, happy ending with the moral).""")
     for k in ("title", "description", "moral", "setting_look", "plot"): outline[k] = txt_of(outline.get(k))
     if not outline["title"] or not outline["plot"]: raise SystemExit("Outline missing title/plot")
     tg_ = outline.get("tags", [])
@@ -190,21 +224,28 @@ plot (English, 60-90 words: beginning, small problem, how it is solved, moral)."
     styles, colors = assign_voices(chars)
     names = [c["name"] for c in chars]
     looks = "; ".join(f"{c['name']} = {c['look']}" for c in chars)
-    d = llm_json(f"""Write the script of this children's story as a short animated dialogue.
+    beats = []; so_far = ""
+    for ai, (act_name, act_goal) in enumerate(ACTS):
+        d = llm_json(f"""Write one part of a children's story as a short animated script. This is {act_name} of 5.
 Title: {outline['title']}
-Plot: {outline['plot']}
-Moral (the Narrator says it in the LAST beat): {outline['moral']}
+Whole plot: {outline['plot']}
+Moral (the Narrator says it in the LAST beat of Act 5): {outline['moral']}
+This part: {act_goal}
+Story so far (Tamil, last lines): {so_far or 'nothing yet, this is the beginning'}
 Characters (use EXACTLY these names as speakers, plus "Narrator"): {', '.join(names)}
 Looks: {looks}
 Setting: {outline['setting_look']}
-Style: write the way Tamil children and mums actually talk AT HOME - everyday colloquial spoken Tamil (பேச்சு வழக்கு, in Tamil script), NEVER literary/book Tamil (no செந்தமிழ், no "நான் செல்கிறேன்", no "வாருங்கள்", no "அன்புடன்"). Use forms like: "நான் போறேன்", "வா டா", "வாடி", "என்னடா ஆச்சு?", "அய்யோ!", "ஐ! சூப்பர்!", "இங்க பாரு", "சொல்லு சொல்லு", "வேணாம்", "இல்லடா", "ஏன்டா அழற?", "அம்மா!", "ஆமாம்ல?", "சரி சரி", "பாவம்", "நல்லா இருக்கு". The Narrator also sounds like a friendly akka/anna telling a story to a kid, not a news reader. Very short lines (max 8 words), lots of small reactions (ஹா ஹா!, அச்சச்சோ!, ஹை!), lively back-and-forth between characters, a little humour, sound words like "டமால்!" are welcome. The FIRST beat must be an exciting hook (a question or a surprise).
-Return JSON only: beats = list of exactly 8 beats in order. Each beat has:
-  lines: list of 1 or 2 objects {{"speaker": name or "Narrator", "text": Tamil line}},
-  scene: ONE English image prompt showing exactly what happens in that beat (cute bright 3D cartoon, the characters' looks from the list, happy colourful, child-friendly, no text).
-Total across all lines: 105-130 Tamil words.""", check=make_check(names))
-    beats = []
-    for b in d["beats"][:9]:
-        beats.append({"lines": norm_lines(b.get("lines"), names), "scene": txt_of(b.get("scene"))})
+{STYLE_RULES}
+Return JSON only: beats = list of exactly 7 beats in order. Each beat has:
+  lines: list of 1 to 3 objects {{"speaker": name or "Narrator", "text": Tamil line}},
+  scene: ONE English image prompt showing exactly what happens in that beat (cute bright 3D cartoon, the characters' looks from the list, happy colourful, child-friendly, wide shot, no text).
+Total across all lines of this part: 85-115 Tamil words. Continue the story naturally from "story so far"; do not repeat earlier lines.""", check=make_check(names))
+        part = []
+        for b in d["beats"][:8]:
+            part.append({"lines": norm_lines(b.get("lines"), names), "scene": txt_of(b.get("scene")), "act": ai})
+        if part: part[0]["act_start"] = True
+        beats += part
+        so_far = " / ".join(l["text"] for b in part[-3:] for l in b["lines"])
     outline.update({"beats": beats, "chars": chars, "styles": styles, "colors": colors, "fp": "|".join(combo), "combo": list(combo)})
     return outline
 
@@ -240,14 +281,48 @@ def _to_wav(mp3, wav):
 def wav_dur(p):
     with wave.open(p) as w: return w.getnframes() / w.getframerate()
 
-def tts_batch(jobs):
-    """jobs: list of dicts text, wav, voice, rate, pitch"""
+def tts_edge(jobs):
     async def go():
         sem = asyncio.Semaphore(4)
         await asyncio.gather(*[_edge_one(j["text"], j["wav"] + ".mp3", j["voice"], j["rate"], j["pitch"], sem) for j in jobs])
     asyncio.run(go())
     with cf.ThreadPoolExecutor(4) as ex:
         list(ex.map(lambda j: _to_wav(j["wav"] + ".mp3", j["wav"]), jobs))
+
+def tts_puter(jobs):
+    """Gemini voices through Puter.js (node puter_tts.mjs). Raises if ANY line fails, so the caller can redo the
+    whole video with edge-tts and every character keeps one consistent voice."""
+    script = os.path.join(ROOT, "puter_tts.mjs")
+    if not os.path.exists(script): raise RuntimeError("puter_tts.mjs is missing")
+    if not env("PUTER_AUTH_TOKEN"): raise RuntimeError("PUTER_AUTH_TOKEN is not set")
+    spec = []
+    for j in jobs:
+        v, note = puter_voice(j["style"])
+        spec.append({"text": j["text"], "out": j["wav"] + ".raw", "voice": v,
+                     "instructions": f"Speak in everyday colloquial Tamil like {note}. Speak only the text, do not read these instructions."})
+    jf = os.path.join(os.path.dirname(jobs[0]["wav"]), "puter_jobs.json")
+    json.dump(spec, open(jf, "w", encoding="utf-8"), ensure_ascii=False)
+    try:
+        p = subprocess.run(["node", script, jf], cwd=ROOT, capture_output=True, text=True, timeout=120 + 40 * len(jobs))
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("Puter voice timed out")
+    out = (p.stdout or "") + (p.stderr or "")
+    bad = [s["out"] for s in spec if not (os.path.exists(s["out"]) and os.path.getsize(s["out"]) > 1000)]
+    if p.returncode != 0 or bad:
+        raise RuntimeError(f"Puter voice failed for {len(bad)} line(s): {out[-300:]}")
+    for j, s in zip(jobs, spec):
+        run(["ffmpeg", "-y", "-i", s["out"], "-ar", str(SR), "-ac", "1", "-c:a", "libmp3lame", "-b:a", "96k", j["wav"] + ".mp3"])
+        _to_wav(j["wav"] + ".mp3", j["wav"])
+
+def tts_batch(jobs):
+    """jobs: dicts text, wav, style, voice, rate, pitch. Engine: TTS_ENGINE=puter|edge (default puter when PUTER_AUTH_TOKEN is set)."""
+    eng = env("TTS_ENGINE").lower() or ("puter" if env("PUTER_AUTH_TOKEN") else "edge")
+    if eng == "puter":
+        try:
+            tts_puter(jobs); print("Voices: Puter (Gemini)"); return
+        except Exception as e:
+            print("Puter voices failed, using edge-tts for the whole video:", str(e)[:300])
+    tts_edge(jobs); print("Voices: edge-tts")
 
 # ====================== TIMELINE ======================
 def plan_timeline(beats):
@@ -336,91 +411,55 @@ def logo_events(L):
     """Animated channel badge, top-left, whole video. Own logo: put assets/logo.png (overlaid later)."""
     if os.path.exists(os.path.join(ROOT, "assets", "logo.png")): return []
     ini = (CHANNEL.strip()[:1] or "K").upper(); ev = []
-    ev.append(dlg(8, 0, L, "Shape", tg(r"\an5\pos(120,170)\c&H3A9BFF&\3c&HFFFFFF&\bord6\shad0\fad(300,0)\p1") + circle(130) + tg(r"\p0")))
+    ev.append(dlg(8, 0, L, "Shape", tg(r"\an5\pos(100,100)\c&H3A9BFF&\3c&HFFFFFF&\bord5\shad0\fad(300,0)\p1") + circle(110) + tg(r"\p0")))
     t = 0.0; wob = ""
     while t < L:
         wob += rf"\t({int(t*1000)},{int(t*1000+400)},\frz8\fscx108\fscy108)\t({int(t*1000+400)},{int(t*1000+800)},\frz-8\fscx100\fscy100)"; t += 0.8
-    ev.append(dlg(9, 0, L, "Shape", tg(r"\an5\pos(120,170)\c&HFFFFFF&\bord0\shad0\fs72\b1\fad(300,0)" + wob) + ini))
-    ev.append(dlg(9, 0, L, "Brand", tg(r"\an4\pos(200,170)\fad(400,0)\fs38") + CHANNEL))
+    ev.append(dlg(9, 0, L, "Shape", tg(r"\an5\pos(100,100)\c&HFFFFFF&\bord0\shad0\fs60\b1\fad(300,0)" + wob) + ini))
+    ev.append(dlg(9, 0, L, "Brand", tg(r"\an4\pos(170,100)\fad(400,0)\fs34") + CHANNEL))
     return ev
 
 # ====================== IMAGES ======================
-STYLE = ", cute 3D animated cartoon style like a children's movie, bright vibrant colours, soft warm lighting, big friendly expressive eyes, happy mood, child-friendly, vertical composition, no text"
+STYLE = ", cute 3D animated cartoon style like a children's movie, bright vibrant colours, soft warm lighting, big friendly expressive eyes, happy mood, child-friendly, wide cinematic 16:9 composition, no text"
 STORY_SEED = random.randint(1, 999999)
-def get_image(prompt, path, prev, size=(720, 1280), style=True, seed=None):
+def _img_pollinations(prompt, path, size, seed, style):
     url = "https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt + (STYLE if style else ", cute 3D animated cartoon style, bright colours, big friendly eyes")) + f"?width={size[0]}&height={size[1]}&nologo=true&model=flux&seed={seed if seed else random.randint(1,999999)}"
-    for i in range(5):
+    for i in range(4):
         try:
             r = requests.get(url, timeout=120)
             if r.status_code == 200 and len(r.content) > 5000 and r.headers.get("content-type", "").startswith("image"):
                 open(path, "wb").write(r.content); return True
         except Exception as e: print("img retry", e)
         time.sleep(4 * (i + 1))
+    return False
+
+def _img_puter(prompt, path, size, seed, style):
+    """Puter.js image model (square picture; the video crops it to wide 16:9, so ask for a centred subject)."""
+    script = os.path.join(ROOT, "puter_img.mjs")
+    if not (os.path.exists(script) and env("PUTER_AUTH_TOKEN")): return False
+    pf = path + ".prompt.txt"
+    open(pf, "w", encoding="utf-8").write(prompt + (STYLE if style else "") + ", wide 16:9 composition with the main characters in the centre")
+    for i in range(2):
+        try:
+            p = subprocess.run(["node", script, pf, path + ".puter"], cwd=ROOT, capture_output=True, text=True, timeout=180)
+            if p.returncode == 0 and os.path.exists(path + ".puter"):
+                c = subprocess.run(["ffmpeg", "-y", "-i", path + ".puter", "-q:v", "2", path], capture_output=True)
+                if c.returncode == 0 and os.path.getsize(path) > 5000: return True
+            print("puter img retry:", (p.stdout or p.stderr)[-160:])
+        except Exception as e: print("puter img error", str(e)[:120])
+        time.sleep(4)
+    return False
+
+def get_image(prompt, path, prev, size=(1280, 720), style=True, seed=None):
+    """IMG_ENGINES (default 'pollinations,puter'): tried in order. Last resort: previous picture, then a plain colour."""
+    for eng in [e.strip().lower() for e in env("IMG_ENGINES", "pollinations,puter").split(",") if e.strip()]:
+        fn = _img_puter if eng == "puter" else _img_pollinations
+        if fn(prompt, path, size, seed, style): return True
+        print("image engine failed:", eng)
     if prev and os.path.exists(prev): open(path, "wb").write(open(prev, "rb").read()); return True
     run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"color=c=0x2a6fdb:s={size[0]}x{size[1]}", "-frames:v", "1", path])
     return False
 
-
-# ====================== PUPPET ANIMATION ======================
-CHAR_H = 660          # character height in the 1080x1920 frame
-CHAR_BASE = 1600      # feet line
-
-def make_cutout(img_path, out_png):
-    """Remove the plain white background (flood fill from the 4 corners) -> RGBA png cropped to the character."""
-    from PIL import Image, ImageDraw, ImageChops, ImageFilter
-    im = Image.open(img_path).convert("RGB"); w, h = im.size
-    work = im.copy(); mark = (255, 0, 254)
-    for pt in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1), (w // 2, 0), (w // 2, h - 1)):
-        try:
-            if work.getpixel(pt) != mark: ImageDraw.floodfill(work, pt, mark, thresh=48)
-        except Exception: pass
-    r, g, b = work.split()
-    bg = ImageChops.multiply(ImageChops.multiply(r.point(lambda v: 255 if v == 255 else 0), g.point(lambda v: 255 if v == 0 else 0)), b.point(lambda v: 255 if v == 254 else 0))
-    alpha = ImageChops.invert(bg).filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(1.2))
-    rgba = im.convert("RGBA"); rgba.putalpha(alpha)
-    box = alpha.point(lambda v: 255 if v > 40 else 0).getbbox()
-    if not box or (box[2] - box[0]) < w * 0.12 or (box[3] - box[1]) < h * 0.25: return False   # nothing usable cut out
-    rgba = rgba.crop(box); sc = CHAR_H / rgba.size[1]
-    nw, nh = int(rgba.size[0] * sc), CHAR_H
-    if nw > 480: nh = int(nh * 480 / nw); nw = 480
-    rgba = rgba.resize((nw, nh), Image.LANCZOS)
-    rgba.save(out_png); return True
-
-def make_characters(d, workdir):
-    ok = {}
-    for i, c in enumerate(d["chars"][:4]):
-        raw = os.path.join(workdir, f"char{i}.jpg"); png = os.path.join(workdir, f"char{i}.png")
-        for attempt in range(2):
-            get_image(f"{c['look']}, full body, standing, front view, facing the camera, smiling, centered, solid pure white background #FFFFFF, no shadow, no ground, no text",
-                      raw, None, size=(768, 768), style=False)
-            try:
-                if make_cutout(raw, png): ok[c["name"]] = png; break
-            except Exception as e: print("cutout failed:", e)
-    return ok
-
-def beat_cast(beat, chars_ok, order):
-    names = []
-    for l in beat["lines"]:
-        if l["speaker"] in chars_ok and l["speaker"] not in names: names.append(l["speaker"])
-    if not names: names = [order[0]] if order else []
-    return names[:3]
-
-def overlay_chars(clip_in, clip_out, beat, clip_start, F, cast, chars_ok):
-    """Puppets: idle sway always, lively bounce while that character speaks."""
-    from PIL import Image
-    if not cast: os.replace(clip_in, clip_out); return
-    n = len(cast); inputs = ["-i", clip_in]; chain = []; last = "0:v"
-    for k, nm in enumerate(cast):
-        inputs += ["-i", chars_ok[nm]]
-        wpx, hpx = Image.open(chars_ok[nm]).size
-        cx = int(W * (k + 1) / (n + 1)); x0 = cx - wpx // 2; y0 = CHAR_BASE - hpx
-        spk = [(max(0.0, l["start"] - clip_start), l["end"] - clip_start) for l in beat["lines"] if l["speaker"] == nm]
-        bounce = "+".join(f"between(t,{a:.3f},{b:.3f})*(26*abs(sin(t*13)))" for a, b in spk) or "0"
-        dip = "+".join(f"between(t,{a:.3f},{b:.3f})*0" for a, b in spk) or "0"
-        pop = f"if(lt(t,0.35),(0.35-t)*260,0)"          # characters hop in at the start of every scene
-        chain.append(f"[{last}][{k+1}:v]overlay=x='{x0}+5*sin(t*2+{k})':y='{y0}+4*sin(t*3+{k})-({bounce})+{pop}':format=auto[o{k}]")
-        last = f"o{k}"
-    run(["ffmpeg", "-y"] + inputs + ["-filter_complex", ";".join(chain), "-map", f"[{last}]", "-frames:v", str(F)] + VENC[:-1] + [clip_out])
 
 # ====================== VIDEO ======================
 VENC = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-r", str(FPS), "-video_track_timescale", "15360", "-an"]
@@ -437,58 +476,122 @@ def motion(kind, F):
     else: z = f"1.12+0.010*sin(on/7)"; y = f"(ih-ih/zoom)*on/{F}+{sway_y}"
     return f"zoompan=z='{z}':x='{x}':y='{y}':d={F}:s={W}x{H}:fps={FPS}"
 
-def render_clip(a):
-    img, out, F, kind = a
+def make_ai_clips(d, beats, imgs, workdir):
+    """AI video clip per scene through Puter (node puter_vid.mjs). Image-to-video by default: the scene picture is the first
+    frame. Returns {beat index: clip file} for the clips that worked. USE_PUTER_VIDEO=false turns this off."""
+    script = os.path.join(ROOT, "puter_vid.mjs")
+    if env("USE_PUTER_VIDEO", "true").lower() == "false" or not env("PUTER_AUTH_TOKEN") or not os.path.exists(script): return {}
+    lo, hi = int(env("VIDEO_MIN_SECONDS", "4")), int(env("VIDEO_MAX_SECONDS", "8"))
+    i2v = env("VIDEO_MODE", "i2v").lower() != "t2v"
+    model = env("VIDEO_MODEL") or ("wan-ai/wan2.7-i2v" if i2v else "wan-ai/wan2.7-t2v")
+    cast = "; ".join(c["look"] for c in d["chars"])
+    jobs = []
+    for i, b in enumerate(beats[: int(env("MAX_AI_CLIPS", "45"))]):
+        need = (b["f1"] - b["f0"]) / FPS
+        jobs.append({"id": i, "model": model, "seconds": int(min(max(round(need), lo), hi)), "image": imgs[i] if i2v else "",
+                     "out": os.path.join(workdir, f"ai{i}.mp4"),
+                     "prompt": f"{cast}. {b['scene']}. Smooth natural cartoon character animation, characters move and react, no text, no scene cut, no camera shake"})
+    jf = os.path.join(workdir, "vid_jobs.json"); json.dump(jobs, open(jf, "w", encoding="utf-8"), ensure_ascii=False)
+    try:
+        p = subprocess.run(["node", script, jf], cwd=ROOT, capture_output=True, text=True, timeout=int(env("VIDEO_TIMEOUT_MIN", "150")) * 60)
+        out = (p.stdout or "") + (p.stderr or "")
+    except subprocess.TimeoutExpired as e:
+        out = "timed out"; print("AI video step timed out; using what finished")
+    ok = {j["id"]: j["out"] for j in jobs if os.path.exists(j["out"]) and os.path.getsize(j["out"]) > 20000}
+    print(f"AI video clips: {len(ok)}/{len(beats)} made ({model})")
+    bad = [l for l in out.splitlines() if l.startswith(("FAIL", "FATAL"))]
+    if bad: print("AI video problems (first 3):", " | ".join(bad[:3])[:400])
+    return ok
+
+def fit_ai_clip(src, out, F):
+    """Make an AI clip exactly F frames: a little slower (max 1.3x) if it is short, last frame held for the rest."""
+    need = F / FPS
+    dc = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", src], capture_output=True, text=True).stdout.strip())
+    f = min(max(need / dc, 1.0), 1.3)
+    vf = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setpts={f:.4f}*PTS,fps={FPS},"
+          f"tpad=stop_mode=clone:stop_duration={need:.2f},format=yuv420p")
+    run(["ffmpeg", "-y", "-i", src, "-vf", vf, "-frames:v", str(F), "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-threads", "2", "-an", out])
+
+def still_clip(img, out, F):
     run(["ffmpeg", "-y", "-loop", "1", "-framerate", str(FPS), "-i", img, "-vf",
-         f"crop=iw:ih*0.93:0:0,scale={W*2}:{H*2}:force_original_aspect_ratio=increase,crop={W*2}:{H*2},{motion(kind, F)},format=yuv420p",
-         "-frames:v", str(F), "-c:v", "libx264", "-preset", "ultrafast", "-crf", "17", "-threads", "2", out])
+         f"crop=iw:ih*0.93:0:0,scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},format=yuv420p",
+         "-frames:v", str(F), "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18", "-threads", "2", out])
+
+def render_clip(a):
+    img, out, F, kind, ai = a
+    if ai:
+        try: fit_ai_clip(ai, out, F); return out
+        except BaseException as e:
+            if isinstance(e, KeyboardInterrupt): raise
+            print("AI clip unusable, using the still picture:", str(e)[:120])
+    if env("FALLBACK_MOTION", "false").lower() == "true":     # slow zoom/pan on the picture (off by default)
+        run(["ffmpeg", "-y", "-loop", "1", "-framerate", str(FPS), "-i", img, "-vf",
+             f"crop=iw:ih*0.93:0:0,scale={W*3//2}:{H*3//2}:force_original_aspect_ratio=increase,crop={W*3//2}:{H*3//2},{motion(kind, F)},format=yuv420p",
+             "-frames:v", str(F), "-c:v", "libx264", "-preset", "ultrafast", "-crf", "18", "-threads", "2", out])
+    else:
+        still_clip(img, out, F)
+    return out
+
+def xfade_join(files, starts, out, tail_vf=None, frames=None, crf="18"):
+    """Cross-dissolve `files` (each begins at story frame starts[i]) into one video. `starts` are relative to starts[0]."""
+    fc = []; last = "0:v"
+    for i in range(1, len(files)):
+        off = (starts[i] - starts[0]) / FPS
+        fc.append(f"[{last}][{i}:v]xfade=transition=fade:duration={OV}:offset={off:.4f}[x{i}]"); last = f"x{i}"
+    if tail_vf:
+        fc.append(f"[{last}]{tail_vf}[vout]")
+    elif len(files) > 1:
+        fc[-1] = fc[-1].rsplit("[", 1)[0] + "[vout]"
+    else:
+        fc.append("[0:v]null[vout]")
+    cmd = ["ffmpeg", "-y"]
+    for f in files: cmd += ["-i", f]
+    cmd += ["-filter_complex", ";".join(fc), "-map", "[vout]"]
+    if frames: cmd += ["-frames:v", str(frames)]
+    run(cmd + [x if x != "22" else crf for x in VENC] + [out])
     return out
 
 def make_story(d, beats, story_frames, workdir):
-    chars_ok = make_characters(d, workdir) if env("PUPPETS", "false") == "true" else {}
-    puppet = bool(chars_ok); order = [c["name"] for c in d["chars"] if c["name"] in chars_ok]
-    print("Puppet mode:", puppet, "| cutouts:", list(chars_ok))
-    imgs = []; good = []; prev = None
-    for i, b in enumerate(beats):
-        p = os.path.join(workdir, f"img{i}.jpg")
-        sc = (f"{d['setting_look']}, {b['scene']}, EMPTY background scenery only, no people, no animals, no characters, wide open ground in the lower middle" if puppet else b["scene"])
-        ok = get_image(sc + ", same characters and same art style in every scene", p, prev, seed=STORY_SEED + (0 if puppet else i)); good.append(ok)
-        imgs.append(p); prev = p if ok else prev
-    first_good = next((imgs[i] for i, g in enumerate(good) if g), None)       # never show the blue placeholder frame
+    cast = "; ".join(c["look"] for c in d["chars"])
+    N = len(beats); imgs = [os.path.join(workdir, f"img{i}.jpg") for i in range(N)]; good = [False] * N
+    def gen(i):
+        good[i] = get_image(f"{cast}. {beats[i]['scene']}, same characters and same art style in every scene", imgs[i], None, seed=STORY_SEED + i)
+    with cf.ThreadPoolExecutor(int(env("IMG_WORKERS", "2"))) as ex: list(ex.map(gen, range(N)))
+    first_good = next((imgs[i] for i in range(N) if good[i]), None)       # never show the blue placeholder frame
     if first_good:
-        for i, g in enumerate(good):
-            if not g: open(imgs[i], "wb").write(open(first_good, "rb").read())
-    hf = int(OV * FPS / 2); N = len(beats); jobs = []
+        prev = first_good
+        for i in range(N):
+            if good[i]: prev = imgs[i]
+            else: open(imgs[i], "wb").write(open(prev, "rb").read())
+    print(f"Pictures: {sum(good)}/{N} made")
+    hf = int(OV * FPS / 2); jobs = []; starts = []
+    ai = make_ai_clips(d, beats, imgs, workdir)
     for i, b in enumerate(beats):
         n = b["f1"] - b["f0"]
         F = n if N == 1 else n + (hf if i in (0, N - 1) else 2 * hf)
-        jobs.append((imgs[i], os.path.join(workdir, f"clip{i}.mp4"), F, (i * 5 + 1) % 6))
-    with cf.ThreadPoolExecutor(3) as ex: clips = list(ex.map(render_clip, jobs))
-    if puppet:
-        for i, b in enumerate(beats):
-            cs = 0.0 if i == 0 else (b["f0"] - hf) / FPS
-            outp = os.path.join(workdir, f"clipc{i}.mp4")
-            overlay_chars(clips[i], outp, b, cs, jobs[i][2], beat_cast(b, chars_ok, order), chars_ok)
-            clips[i] = outp
+        jobs.append((imgs[i], os.path.join(workdir, f"clip{i}.mp4"), F, (i * 5 + 1) % 6, ai.get(i)))
+        starts.append(0 if i == 0 else b["f0"] - hf)
+    with cf.ThreadPoolExecutor(int(env("CLIP_WORKERS", "3"))) as ex: clips = list(ex.map(render_clip, jobs))
     allines = [l for b in beats for l in b["lines"]]; story_len = story_frames / FPS
     ass = [ass_head()]
     ass += logo_events(story_len)
-    ass.append(dlg(2, 0.0, 3.4, "Title", tg(r"\an8\pos(540,300)\fad(150,450)\fscx88\fscy88\t(0,300,\fscx100\fscy100)") + d["title"]))
+    ass.append(dlg(2, 0.0, 4.0, "Title", tg(r"\an8\pos(960,60)\fad(150,450)\fscx88\fscy88\t(0,300,\fscx100\fscy100)") + d["title"]))
     for s in allines:
         if s["speaker"] != "Narrator":
             chip_col = d["colors"][s["speaker"]]
-            ass.append(dlg(1, s["start"], s["end"] + 0.1, "Chip", tg(rf"\an2\pos(540,1700)\3c&H{chip_col}&\bord18\1c&H202020&") + " " + s["speaker"] + " "))
+            ass.append(dlg(1, s["start"], s["end"] + 0.1, "Chip", tg(rf"\an2\pos(960,1020)\3c&H{chip_col}&\bord16\1c&H202020&") + " " + s["speaker"] + " "))
     assf = os.path.join(workdir, "story.ass"); open(assf, "w", encoding="utf-8").write("\n".join(ass) + "\n")
-    fc = []; last = "0:v"
-    for i in range(1, N):
-        off = (beats[i]["f0"] - hf) / FPS
-        fc.append(f"[{last}][{i}:v]xfade=transition=fade:duration={OV}:offset={off:.4f}[x{i}]"); last = f"x{i}"
-    tail = (f"[{last}]tpad=stop_mode=clone:stop_duration=2,eq=contrast=1.05:saturation=1.22,"
-            f"ass={assf},fade=t=out:st={story_len-0.2:.3f}:d=0.2[vout]")
-    fc.append(tail if N > 1 else tail.replace(f"[{last}]", "[0:v]", 1))
-    out = os.path.join(workdir, "story.mp4"); cmd = ["ffmpeg", "-y"]
-    for c in clips: cmd += ["-i", c]
-    run(cmd + ["-filter_complex", ";".join(fc), "-map", "[vout]", "-frames:v", str(story_frames)] + VENC + [out])
+    # join in chunks of 6 pictures first (a 35-way dissolve chain in one go is very slow), then join the chunks
+    CH = 6; chunk_files = []; chunk_starts = []
+    for c0 in range(0, N, CH):
+        idx = list(range(c0, min(c0 + CH, N)))
+        cf_out = os.path.join(workdir, f"chunk{c0 // CH}.mp4")
+        xfade_join([clips[i] for i in idx], [starts[i] for i in idx], cf_out)
+        chunk_files.append(cf_out); chunk_starts.append(starts[idx[0]])
+    out = os.path.join(workdir, "story.mp4")
+    tail = (f"tpad=stop_mode=clone:stop_duration=2,eq=contrast=1.05:saturation=1.22,"
+            f"ass={assf},fade=t=out:st={story_len-0.2:.3f}:d=0.2")
+    xfade_join(chunk_files, chunk_starts, out, tail_vf=tail, frames=story_frames, crf="22")
     return out, imgs[-1]
 
 def outro_clicks(cta):
@@ -500,9 +603,9 @@ def make_outro(workdir, last_img, cta, outro_frames):
     L = outro_frames / FPS; ass = [ass_head()]
     c1, c2, c3 = outro_clicks(cta)
     ass += logo_events(L)
-    ass.append(txt(2, 0.05, L, "Tam", 540, 560, "00F0FF", 84, "பிடிச்சிருக்கா?", r"\fad(200,200)\fscx80\fscy80\t(0,300,\fscx100\fscy100)"))
-    ass.append(txt(2, 0.05, L, "Txt", 540, 700, "FFFFFF", 70, "LIKE  •  SUBSCRIBE", r"\fad(200,200)"))
-    LX, SX, BX, Y = 255, 640, 905, 900
+    ass.append(txt(2, 0.05, L, "Tam", 960, 300, "00F0FF", 96, "பிடிச்சிருக்கா?", r"\fad(200,200)\fscx80\fscy80\t(0,300,\fscx100\fscy100)"))
+    ass.append(txt(2, 0.05, L, "Txt", 960, 430, "FFFFFF", 72, "LIKE  •  SUBSCRIBE", r"\fad(200,200)"))
+    LX, SX, BX, Y = 640, 1055, 1375, 640
     for (a, b, col, label, icon) in [(0.05, c1, "3A3A3A", "LIKE", "FFFFFF"), (c1, L, "FFA63E", "LIKED", "FFFFFF")]:
         ex = r"\fad(200,0)" if a == 0.05 else r"\fscx112\fscy112\t(0,200,\fscx100\fscy100)"
         ass.append(shape(1, a, b, LX, Y, rrect(300, 120, 60), col, ex))
@@ -517,7 +620,7 @@ def make_outro(workdir, last_img, cta, outro_frames):
     shake = r"\t(0,90,\frz18)\t(90,180,\frz-18)\t(180,270,\frz14)\t(270,360,\frz-14)\t(360,450,\frz8)\t(450,540,\frz0)"
     ass.append(shape(1, c3, L, BX, Y, BIGCIRCLE, "00C8FF", r"\fscx108\fscy108\t(0,200,\fscx100\fscy100)"))
     ass.append(shape(2, c3, L, BX, Y, BELL, "000000", r"\fscx105\fscy105" + shake))
-    pts = [(1000, 1300), (LX + 30, Y + 20), (SX + 60, Y + 20), (BX + 8, Y + 22)]
+    pts = [(1700, 940), (LX + 30, Y + 20), (SX + 60, Y + 20), (BX + 8, Y + 22)]
     clicks = [c1, c2, c3]
     legs = [(0.1, c1 - 0.12), (c1 + 0.2, min(c1 + 0.7, c2 - 0.08)), (c2 + 0.2, min(c2 + 0.7, c3 - 0.08))]
     for i, (s0, e0) in enumerate(legs):
@@ -569,17 +672,51 @@ def find_bgm(workdir):
     print("BGM:", pick); return norm
 
 def mix_audio(narr, total_s, workdir):
+    """Voices (+sfx) cleaned up first in their own pass, then mixed with the BGM ducked under the voice.
+    (Normalising inside the same graph as the sidechain made the mix end ~3 s early and cut the goodbye.)"""
     out = os.path.join(workdir, "mix.m4a"); bgm = find_bgm(workdir)
     voice = ("highpass=f=80,equalizer=f=250:t=q:w=1.2:g=1.5,equalizer=f=3000:t=q:w=1:g=4,"
              "acompressor=threshold=0.09:ratio=3:attack=5:release=120:makeup=2,loudnorm=I=-14:TP=-1.5:LRA=9")
     fade = f"afade=t=out:st={total_s-0.8:.2f}:d=0.8"
+    vclean = os.path.join(workdir, "voice_clean.wav")
+    run(["ffmpeg", "-y", "-i", narr, "-af", voice + f",apad=whole_dur={total_s:.3f}", "-t", f"{total_s:.3f}", "-ar", str(SR), "-ac", "1", "-c:a", "pcm_s16le", vclean])
     if bgm:
-        fc = (f"[0:a]{voice},asplit=2[v][vs];[1:a]volume=0.34[b];[b][vs]sidechaincompress=threshold=0.02:ratio=9:attack=20:release=500[bd];"
-              f"[v][bd]amix=inputs=2:duration=first:normalize=0,{fade}[a]")
-        run(["ffmpeg", "-y", "-i", narr, "-stream_loop", "-1", "-i", bgm, "-filter_complex", fc, "-map", "[a]", "-t", f"{total_s:.3f}", "-c:a", "aac", "-b:a", "192k", out])
+        fc = (f"[0:a]asplit=2[v][vs];[1:a]volume=0.34[b];[b][vs]sidechaincompress=threshold=0.02:ratio=9:attack=20:release=500[bd];"
+              f"[v][bd]amix=inputs=2:duration=first:normalize=0,apad=whole_dur={total_s:.3f},{fade}[a]")
+        run(["ffmpeg", "-y", "-i", vclean, "-stream_loop", "-1", "-i", bgm, "-filter_complex", fc, "-map", "[a]", "-t", f"{total_s:.3f}", "-c:a", "aac", "-b:a", "192k", out])
     else:
-        run(["ffmpeg", "-y", "-i", narr, "-af", f"{voice},{fade}", "-t", f"{total_s:.3f}", "-c:a", "aac", "-b:a", "192k", out])
+        run(["ffmpeg", "-y", "-i", vclean, "-af", fade, "-t", f"{total_s:.3f}", "-c:a", "aac", "-b:a", "192k", out])
     return out
+
+# ====================== CHANNEL INTRO ======================
+def make_intro(workdir):
+    """Channel intro animation (assets/intro.mp4, any size). Fitted onto the 16:9 frame (a different shape is fitted over a blurred copy of itself),
+    cut to INTRO_SECONDS (default 9, so the title card is fully shown) and faded out. INTRO=false skips it.
+    Returns (video, wav, seconds) or None."""
+    src = os.path.join(ROOT, "assets", "intro.mp4")
+    if env("INTRO", "true").lower() == "false" or not os.path.exists(src): return None
+    try:
+        dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", src],
+                                   capture_output=True, text=True).stdout.strip())
+        L = min(dur, float(env("INTRO_SECONDS", "9")))
+        L = math.floor(L * FPS) / FPS
+        vid = os.path.join(workdir, "intro_v.mp4"); wav = os.path.join(workdir, "intro_a.wav")
+        vf = (f"split[a][b];[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=30:3,eq=brightness=-0.04[bg];"
+              f"[b]scale={W}:{H}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,fps={FPS},format=yuv420p,"
+              f"fade=t=out:st={L-0.4:.3f}:d=0.4")
+        run(["ffmpeg", "-y", "-i", src, "-t", f"{L:.3f}", "-filter_complex", vf] + VENC + [vid])
+        has_a = "audio" in subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type", "-of", "csv=p=0", src],
+                                          capture_output=True, text=True).stdout
+        if has_a:
+            run(["ffmpeg", "-y", "-i", src, "-t", f"{L:.3f}", "-vn", "-af", f"loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=out:st={L-0.5:.3f}:d=0.5",
+                 "-ar", "44100", "-ac", "2", "-c:a", "pcm_s16le", wav])
+        else:
+            run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=stereo", "-t", f"{L:.3f}", "-c:a", "pcm_s16le", wav])
+        print(f"Intro: {L:.1f}s")
+        return vid, wav, L
+    except BaseException as e:
+        if isinstance(e, KeyboardInterrupt): raise
+        print("Intro skipped:", str(e)[:200]); return None
 
 # ====================== BUILD ======================
 def make_video(d, workdir):
@@ -592,56 +729,73 @@ def make_video(d, workdir):
                 lines.append({"speaker": l["speaker"], "text": " ".join(ch)})
         b["lines"] = lines
         for li, l in enumerate(lines):
-            v, r, p = STYLES[d["styles"].get(l["speaker"], "narrator")]
+            sty = d["styles"].get(l["speaker"], "narrator")
+            v, r, p = STYLES[sty]
             l["wav"] = os.path.join(workdir, f"l_{bi}_{li}.wav")
-            jobs.append({"text": l["text"], "wav": l["wav"], "voice": v, "rate": r, "pitch": p})
+            jobs.append({"text": l["text"], "wav": l["wav"], "style": sty, "voice": v, "rate": r, "pitch": p})
     nv, nr, np_ = STYLES["narrator"]
     cta = {"speaker": "Narrator", "text": CTA_TEXT, "wav": os.path.join(workdir, "cta.wav")}
-    jobs.append({"text": CTA_TEXT, "wav": cta["wav"], "voice": nv, "rate": "+6%", "pitch": np_})
+    jobs.append({"text": CTA_TEXT, "wav": cta["wav"], "style": "narrator", "voice": nv, "rate": "+6%", "pitch": np_})
     tts_batch(jobs)
     for b in beats:
         for l in b["lines"]: l["dur"] = wav_dur(l["wav"])
     cta["dur"] = wav_dur(cta["wav"])
     story_frames = plan_timeline(beats); story_len = story_frames / FPS
     cta["start"] = 0.3; cta["end"] = 0.3 + cta["dur"]; c3 = outro_clicks(cta)[2]
-    outro_frames = math.ceil(max(3.4, c3 + 1.1, cta["start"] + cta["dur"] + 0.8) * FPS); outro_len = outro_frames / FPS
+    outro_frames = math.ceil(max(6.0, c3 + 1.5, cta["start"] + cta["dur"] + 0.8) * FPS); outro_len = outro_frames / FPS
     total = story_len + outro_len
     print(f"Timeline: story {story_len:.1f}s + outro {outro_len:.1f}s = {total:.1f}s, {len(beats)} scenes, voices: {sorted(set(d['styles'].values()))}")
     story, last_img = make_story(d, beats, story_frames, workdir)
     outro, clicks = make_outro(workdir, last_img, cta, outro_frames)
     click_wav, pop_wav = make_sfx(workdir)
     pieces = [(l["start"], l["wav"]) for b in beats for l in b["lines"]] + [(story_len + cta["start"], cta["wav"])]
-    sfx = [(b["start"], pop_wav) for b in beats[1:]] + [(story_len + c, click_wav) for c in clicks]
+    sfx = [(b["start"], pop_wav) for b in beats[1:] if b.get("act_start")] + [(story_len + c, click_wav) for c in clicks]
     narr = os.path.join(workdir, "narr.wav"); build_narration(narr, total, pieces, sfx)
     mix = mix_audio(narr, total, workdir)
-    vl = os.path.join(workdir, "vlist.txt"); open(vl, "w").write("".join(f"file '{p}'\n" for p in (story, outro)))
+    intro = make_intro(workdir)           # (video, wav, seconds) or None
+    parts = ([intro[0]] if intro else []) + [story, outro]
+    il = intro[2] if intro else 0.0
+    vl = os.path.join(workdir, "vlist.txt"); open(vl, "w").write("".join(f"file '{p}'\n" for p in parts))
     final = os.path.join(OUT, "video.mp4")
     logo = os.path.join(ROOT, "assets", "logo.png")
-    if os.path.exists(logo):   # own logo: gently bobbing + pulsing in the top-left corner for the whole video
+    if intro:    # intro sound first, then the voices + BGM mix
+        full = os.path.join(workdir, "full_audio.m4a")
+        run(["ffmpeg", "-y", "-i", intro[1], "-i", mix, "-filter_complex",
+             "[0:a]aresample=44100,aformat=channel_layouts=stereo[a0];[1:a]aresample=44100,aformat=channel_layouts=stereo[a1];[a0][a1]concat=n=2:v=0:a=1[a]",
+             "-map", "[a]", "-c:a", "aac", "-b:a", "192k", full])
+        mix = full
+    if os.path.exists(logo):   # own logo: bobbing + pulsing in the top-left corner after the intro, to the very end
         run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", vl, "-i", mix, "-loop", "1", "-i", logo, "-filter_complex",
-             "[2:v]scale=170:-1,format=rgba,fade=in:st=0:d=0.5:alpha=1[lg];[0:v][lg]overlay=x=40:y='90+8*sin(t*3)':shortest=1,format=yuv420p[v]",
+             f"[2:v]format=rgba,scale=w='150*(1+0.06*sin(t*4))':h=-1:eval=frame,fade=in:st={il:.2f}:d=0.5:alpha=1[lg];"
+             f"[0:v][lg]overlay=x='30+(150-overlay_w)/2':y='24+(150-overlay_h)/2+6*sin(t*3)':enable='gte(t,{il:.2f})':shortest=1,format=yuv420p[v]",
              "-map", "[v]", "-map", "1:a", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-r", str(FPS), "-c:a", "copy", "-shortest", "-movflags", "+faststart", final])
     else:
         run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", vl, "-i", mix, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "copy", "-shortest", "-movflags", "+faststart", final])
+    total += il
     hero = os.path.join(workdir, "img1.jpg") if len(beats) > 1 else last_img
     make_thumbnail(d, hero, workdir)
-    for name, tt in (("hook", 0.8), ("story", min(story_len - 1, 14.0)), ("outro", total - 1.2)):
+    for name, tt in (("intro", max(il - 1.0, 0.5)), ("hook", il + 0.8), ("story", il + min(story_len - 1, 14.0)), ("outro", total - 1.2)):
         subprocess.run(["ffmpeg", "-y", "-ss", f"{tt:.2f}", "-i", final, "-frames:v", "1", os.path.join(OUT, f"frame_{name}.png")], capture_output=True)
     return final
 
 
 def make_thumbnail(d, img, workdir):
-    """Kid-friendly cover: bright hero image, big Tamil title on a colour banner, thick border, star burst."""
+    """Kid-friendly 16:9 cover: bright hero picture, big Tamil title on a colour banner, thick border, star burst, channel logo."""
     ass = [ass_head()]
-    ass.append(shape(1, 0, 5, 540, 1560, rrect(960, 300, 70), "00B4FF", r"\3c&HFFFFFF&\bord10"))
-    ass.append(dlg(2, 0, 5, "Tam", tg(r"\an5\pos(540,1560)\fs100\c&HFFFFFF&\3c&H8A2BE2&\bord9\shad0\q0\fscx100") + d["title"]))
-    ass.append(shape(1, 0, 5, 880, 330, circle(300), "00E5FF", r"\3c&HFFFFFF&\bord8\frz12"))
-    ass.append(txt(2, 0, 5, "Tam", 880, 330, "8A2BE2", 78, "கதை!", r"\bord0\frz12"))
+    ass.append(shape(1, 0, 5, 960, 870, rrect(1760, 330, 70), "00B4FF", r"\3c&HFFFFFF&\bord10"))
+    ass.append(dlg(2, 0, 5, "Tam", tg(r"\an5\pos(960,870)\fs104\c&HFFFFFF&\3c&H8A2BE2&\bord9\shad0\q0") + d["title"]))
+    ass.append(shape(1, 0, 5, 1650, 250, circle(260), "00E5FF", r"\3c&HFFFFFF&\bord8\frz12"))
+    ass.append(txt(2, 0, 5, "Tam", 1650, 250, "8A2BE2", 76, "கதை!", r"\bord0\frz12"))
     af = os.path.join(workdir, "thumb.ass"); open(af, "w", encoding="utf-8").write("\n".join(ass) + "\n")
     out = os.path.join(OUT, "thumbnail.jpg")
-    r = subprocess.run(["ffmpeg", "-y", "-i", img, "-vf",
-        f"crop=iw:ih*0.93:0:0,scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},eq=saturation=1.35:contrast=1.08,"
-        f"drawbox=x=0:y=0:w={W}:h={H}:color=0xFFD400:t=28,ass={af}", "-frames:v", "1", "-q:v", "3", out], capture_output=True, text=True)
+    base = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},eq=saturation=1.35:contrast=1.08,"
+            f"drawbox=x=0:y=0:w={W}:h={H}:color=0xFFD400:t=24,ass={af}")
+    logo = os.path.join(ROOT, "assets", "logo.png")
+    if os.path.exists(logo):      # channel logo, top-left of the cover
+        cmd = ["ffmpeg", "-y", "-i", img, "-i", logo, "-filter_complex", f"[0:v]{base}[bg];[1:v]scale=280:-1[lg];[bg][lg]overlay=50:50", "-frames:v", "1", "-q:v", "3", out]
+    else:
+        cmd = ["ffmpeg", "-y", "-i", img, "-vf", base, "-frames:v", "1", "-q:v", "3", out]
+    r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0: print("thumbnail failed:", r.stderr[-400:]); return None
     return out
 
@@ -658,9 +812,9 @@ def upload(path, d, thumb=None):
         "client_id": env("YT_CLIENT_ID"), "client_secret": env("YT_CLIENT_SECRET"),
         "refresh_token": env("YT_REFRESH_TOKEN"), "grant_type": "refresh_token"}, timeout=60).json()
     if "access_token" not in tok: raise SystemExit("YouTube auth failed: " + json.dumps(tok))
-    desc = d["description"] + f"\n\nMoral / நீதி: {d['moral']}\n\nஇது ஒரு கற்பனைக் குழந்தைக் கதை. AI animated story for kids.\n#Shorts #TamilKidsStories #KidsStories #TamilStories"
+    desc = d["description"] + f"\n\nMoral / நீதி: {d['moral']}\n\nஇது ஒரு கற்பனைக் குழந்தைக் கதை. AI animated story for kids.\n#TamilKidsStories #KidsStories #TamilStories #TamilCartoon"
     kids = env("MADE_FOR_KIDS", "true").lower() != "false"
-    meta = {"snippet": {"title": (d["title"][:88] + " #Shorts"), "description": desc, "tags": d.get("tags", [])[:12] + ["Shorts", "Tamil kids stories"],
+    meta = {"snippet": {"title": d["title"][:95], "description": desc, "tags": d.get("tags", [])[:12] + ["Tamil kids stories", "Tamil story", "kids cartoon"],
                         "categoryId": "1", "defaultLanguage": "ta", "defaultAudioLanguage": "ta"},
             "status": {"privacyStatus": env("YT_PRIVACY", "private"), "selfDeclaredMadeForKids": kids, "containsSyntheticMedia": True}}
     hdr = {"Authorization": "Bearer " + tok["access_token"], "Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": "video/mp4"}
