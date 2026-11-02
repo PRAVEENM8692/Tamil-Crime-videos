@@ -1,4 +1,4 @@
-name: Kids Tamil Story Shorts
+name: Tamil Kids Story Videos
 on:
   schedule:
     - cron: "7,37 3-16 * * *"
@@ -18,16 +18,33 @@ concurrency:
 jobs:
   make:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 300
     env:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
       LLM_MODEL: ${{ secrets.LLM_MODEL }}
+      PUTER_AUTH_TOKEN: ${{ secrets.PUTER_AUTH_TOKEN }}
+      TTS_ENGINE: ${{ vars.TTS_ENGINE }}
+      NARRATOR_VOICE: ${{ vars.NARRATOR_VOICE }}
+      PUTER_VOICE_MAP: ${{ vars.PUTER_VOICE_MAP }}
+      IMG_ENGINES: ${{ vars.IMG_ENGINES }}
+      PUTER_IMG_MODEL: ${{ vars.PUTER_IMG_MODEL }}
+      USE_PUTER_VIDEO: ${{ vars.USE_PUTER_VIDEO }}
+      VIDEO_MODEL: ${{ vars.VIDEO_MODEL }}
+      VIDEO_MODE: ${{ vars.VIDEO_MODE }}
+      VIDEO_SIZE: ${{ vars.VIDEO_SIZE }}
+      VIDEO_TEST: ${{ vars.VIDEO_TEST }}
+      VIDEO_MIN_SECONDS: ${{ vars.VIDEO_MIN_SECONDS }}
+      VIDEO_MAX_SECONDS: ${{ vars.VIDEO_MAX_SECONDS }}
+      MAX_AI_CLIPS: ${{ vars.MAX_AI_CLIPS }}
+      VID_CONCURRENCY: ${{ vars.VID_CONCURRENCY }}
+      FALLBACK_MOTION: ${{ vars.FALLBACK_MOTION }}
+      INTRO: ${{ vars.INTRO }}
+      INTRO_SECONDS: ${{ vars.INTRO_SECONDS }}
       BGM_FILE: ${{ vars.BGM_FILE }}
       CHANNEL_NAME: ${{ vars.CHANNEL_NAME }}
       MADE_FOR_KIDS: ${{ vars.MADE_FOR_KIDS }}
       YT_PRIVACY: ${{ vars.YT_PRIVACY }}
-      PUPPETS: ${{ vars.PUPPETS }}
       YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
       YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
@@ -41,12 +58,17 @@ jobs:
       - if: steps.plan.outputs.slot != ''
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
+      - if: steps.plan.outputs.slot != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
       - if: steps.plan.outputs.slot != ''
         run: |
           sudo apt-get update -y
           sudo apt-get install -y ffmpeg fonts-noto-core fonts-dejavu-core libass9
           pip install -r requirements.txt
+          npm install --no-save --no-package-lock @heyputer/puter.js
       - if: steps.plan.outputs.slot != ''
         run: python pipeline.py
         env:
@@ -55,7 +77,7 @@ jobs:
       - if: always() && steps.plan.outputs.slot != ''
         uses: actions/upload-artifact@v4
         with:
-          name: kids-short
+          name: kids-video
           path: out
       - if: always() && steps.plan.outputs.slot != '' && (github.event_name == 'schedule' || github.event.inputs.upload == 'true')
         run: |
