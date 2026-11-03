@@ -16,7 +16,7 @@ def env(k, d=""):
 CHANNEL = env("CHANNEL_NAME", "Tamil Kids Story")
 SLOT = int(env("SLOT", "1") or 1)
 LLM_MODEL = env("LLM_MODEL", "gemini-3.8-flash")
-VIDEO_MODEL = env("VIDEO_MODEL", "veo-3.1-lite-generate-preview")      # cheapest Veo; clips come in 4, 6 or 8 seconds
+VIDEO_MODEL = env("VIDEO_MODEL", "gemini-omni-1.1-flash")      # Veo previews were shut down; Omni picks its own clip length (about 3-10 s)
 CLIP_LENGTHS, MAX_SLOW = (4, 6, 8), 1.25                     # a clip may be slowed up to 1.25x, so shorter (cheaper) clips can cover a scene
 
 # ---------------- variety pools (every story = new combination) ----------------
@@ -144,20 +144,33 @@ def _do_tts(j):
         "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": j["voice"]}}}}}).json()
     _wav_write(j["out"], base64.b64decode(r["candidates"][0]["content"]["parts"][0]["inlineData"]["data"]))
 
+def _find_video(o):
+    """Depth-first search of an Interactions answer for the video part: returns ('uri', url) or ('data', base64)."""
+    if isinstance(o, dict):
+        if o.get("type") == "video" or str(o.get("mime_type", "")).startswith("video"):
+            for k in ("uri", "url", "data"):
+                if isinstance(o.get(k), str) and o[k]: return ("data" if k == "data" else "uri", o[k])
+        for v in o.values():
+            r = _find_video(v)
+            if r: return r
+    elif isinstance(o, list):
+        for v in o:
+            r = _find_video(v)
+            if r: return r
+
 def _do_vid(j):
-    if env("DRY_VIDEO") == "true":      # free layout test: a coloured placeholder clip instead of a paid Veo clip
+    """Gemini Omni video (Veo previews were shut down): POST /interactions in the background, poll until done, save the mp4."""
+    if env("DRY_VIDEO") == "true":      # free layout test: a coloured placeholder clip instead of a paid video clip
         run(["ffmpeg", "-y", "-f", "lavfi", "-i", f"testsrc2=s=1280x720:r=24:d={j['seconds']}", "-pix_fmt", "yuv420p", j["out"]]); return
-    op = _call("POST", f"{API}/models/{j['model']}:predictLongRunning", json={"instances": [{"prompt": j["prompt"]}],
-               "parameters": {"aspectRatio": "16:9", "resolution": env("VIDEO_RES", "720p"), "durationSeconds": j["seconds"]}}).json()["name"]
+    o = _call("POST", f"{API}/interactions", json={"model": j["model"], "input": j["prompt"], "background": True,
+              "response_format": {"type": "video", "delivery": "uri", "aspect_ratio": "16:9", "resolution": env("VIDEO_RES", "360p")}}).json()
     end = time.time() + 900
-    while time.time() < end:
-        time.sleep(float(env("POLL_SEC", "8"))); o = _call("GET", f"{API}/{op}").json()
-        if o.get("error"): raise RuntimeError("Veo error " + json.dumps(o["error"])[:300])
-        if o.get("done"):
-            v = o["response"].get("generateVideoResponse", o["response"]); s = (v.get("generatedSamples") or [{}])[0]
-            if not s: raise RuntimeError("Veo gave no video (blocked?) " + json.dumps(v)[:300])
-            open(j["out"], "wb").write(_call("GET", s["video"]["uri"], timeout=300).content); return
-    raise RuntimeError("Veo timed out")
+    while o.get("status") not in ("completed", None) and time.time() < end:
+        if o.get("status") in ("failed", "cancelled"): raise RuntimeError("video failed " + json.dumps(o)[:300])
+        time.sleep(float(env("POLL_SEC", "8"))); o = _call("GET", f"{API}/interactions/{o['id']}").json()
+    v = _find_video(o)
+    if not v: raise RuntimeError("no video in answer: " + json.dumps(o)[:500])
+    open(j["out"], "wb").write(base64.b64decode(v[1]) if v[0] == "data" else _call("GET", v[1], timeout=300).content)
 
 _DO = {"chat": _do_chat, "tts": _do_tts, "vid": _do_vid}
 
@@ -361,8 +374,9 @@ def make_clips(d, beats):
     cast = "; ".join(c["look"] for c in d["chars"]); N = len(beats); jobs = []
     for i, b in enumerate(beats):
         need = (b["f1"] - b["f0"]) / FPS
-        jobs.append({"id": i, "model": VIDEO_MODEL, "seconds": next((s for s in CLIP_LENGTHS if s * MAX_SLOW >= need), CLIP_LENGTHS[-1]), "out": os.path.join(WORK, f"ai{i}.mp4"),
-                     "prompt": f"{cast}. {b['scene']}. Smooth cute 3D cartoon animation, characters move and react naturally, soft bright colours, no text, no scene cut, steady camera"})
+        sec = next((s for s in CLIP_LENGTHS if s * MAX_SLOW >= need), CLIP_LENGTHS[-1])
+        jobs.append({"id": i, "model": VIDEO_MODEL, "seconds": sec, "out": os.path.join(WORK, f"ai{i}.mp4"),
+                     "prompt": f"{cast}. {b['scene']}. A short clip of about {sec} seconds. Smooth cute 3D cartoon animation, characters move and react naturally, soft bright colours, no text, no scene cut, steady camera"})
     ok = gemini("vid", jobs, int(env("VIDEO_TIMEOUT_MIN", "150")) * 60)
     print(f"AI video clips: {len(ok)}/{N} made ({VIDEO_MODEL}, {sum(j['seconds'] for j in jobs if j['id'] in ok)} s generated)")
     if not ok: raise SystemExit("No video clips were made (check GEMINI_API_KEY and billing)")

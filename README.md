@@ -7,8 +7,8 @@ Script, voices and animated clips all come straight from the Google Gemini API. 
 - `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` : YouTube upload
 
 ## Optional variables
-`LLM_MODEL` (gemini-3.8-flash), `TTS_MODEL` (comma list, rotated: gemini-3.8-flash-tts,gemini-3.8-flash-lite-tts,gemini-3.1-flash-tts-preview), `VIDEO_MODEL` (veo-3.1-lite-generate-preview),
-`VIDEO_RES` (720p), `VID_CONCURRENCY` (3), `NARRATOR_VOICE`, `VOICE_MAP`, `INTRO`, `INTRO_SECONDS`, `CHANNEL_NAME`, `YT_PRIVACY`.
+`LLM_MODEL` (gemini-3.8-flash), `TTS_MODEL` (comma list, rotated: gemini-3.8-flash-tts,gemini-3.8-flash-lite-tts,gemini-3.1-flash-tts-preview), `VIDEO_MODEL` (gemini-omni-1.1-flash),
+`VIDEO_RES` (360p default, 720p costs 3x), `VID_CONCURRENCY` (3), `NARRATOR_VOICE`, `VOICE_MAP`, `INTRO`, `INTRO_SECONDS`, `CHANNEL_NAME`, `YT_PRIVACY`.
 
 ## Test in this order
 1. Actions > Run workflow: `upload=false`, `dry_video=true`. Costs almost nothing (text + voice only, placeholder clips). Check layout, voices, intro, logo, outro.
