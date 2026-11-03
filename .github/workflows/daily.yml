@@ -10,35 +10,27 @@ on:
       slot:
         description: "Slot 1, 2 or 3"
         default: "1"
+      dry_video:
+        description: "true = free placeholder clips instead of paid Veo (layout test)"
+        default: "false"
 permissions:
   contents: write
 concurrency:
-  group: kids-shorts
+  group: kids-story
   cancel-in-progress: false
 jobs:
   make:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 240
     env:
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
-      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
-      LLM_MODEL: ${{ secrets.LLM_MODEL }}
-      PUTER_AUTH_TOKEN: ${{ secrets.PUTER_AUTH_TOKEN }}
-      TTS_ENGINE: ${{ vars.TTS_ENGINE }}
-      NARRATOR_VOICE: ${{ vars.NARRATOR_VOICE }}
-      PUTER_VOICE_MAP: ${{ vars.PUTER_VOICE_MAP }}
-      IMG_ENGINES: ${{ vars.IMG_ENGINES }}
-      PUTER_IMG_MODEL: ${{ vars.PUTER_IMG_MODEL }}
-      USE_PUTER_VIDEO: ${{ vars.USE_PUTER_VIDEO }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      LLM_MODEL: ${{ vars.LLM_MODEL }}
+      TTS_MODEL: ${{ vars.TTS_MODEL }}
       VIDEO_MODEL: ${{ vars.VIDEO_MODEL }}
-      VIDEO_MODE: ${{ vars.VIDEO_MODE }}
-      VIDEO_SIZE: ${{ vars.VIDEO_SIZE }}
-      VIDEO_TEST: ${{ vars.VIDEO_TEST }}
-      VIDEO_MIN_SECONDS: ${{ vars.VIDEO_MIN_SECONDS }}
-      VIDEO_MAX_SECONDS: ${{ vars.VIDEO_MAX_SECONDS }}
-      MAX_AI_CLIPS: ${{ vars.MAX_AI_CLIPS }}
+      VIDEO_RES: ${{ vars.VIDEO_RES }}
       VID_CONCURRENCY: ${{ vars.VID_CONCURRENCY }}
-      FALLBACK_MOTION: ${{ vars.FALLBACK_MOTION }}
+      NARRATOR_VOICE: ${{ vars.NARRATOR_VOICE }}
+      VOICE_MAP: ${{ vars.VOICE_MAP }}
       INTRO: ${{ vars.INTRO }}
       INTRO_SECONDS: ${{ vars.INTRO_SECONDS }}
       BGM_FILE: ${{ vars.BGM_FILE }}
@@ -56,23 +48,15 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           INPUT_SLOT: ${{ github.event.inputs.slot }}
       - if: steps.plan.outputs.slot != ''
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - if: steps.plan.outputs.slot != ''
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-      - if: steps.plan.outputs.slot != ''
         run: |
           sudo apt-get update -y
           sudo apt-get install -y ffmpeg fonts-noto-core fonts-dejavu-core libass9
           pip install -r requirements.txt
-          npm install --no-save --no-package-lock @heyputer/puter.js
       - if: steps.plan.outputs.slot != ''
         run: python pipeline.py
         env:
           SLOT: ${{ steps.plan.outputs.slot }}
+          DRY_VIDEO: ${{ github.event.inputs.dry_video == 'true' }}
           UPLOAD: ${{ github.event_name == 'schedule' || github.event.inputs.upload == 'true' }}
       - if: always() && steps.plan.outputs.slot != ''
         uses: actions/upload-artifact@v4
