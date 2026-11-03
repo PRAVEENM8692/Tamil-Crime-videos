@@ -119,7 +119,8 @@ def txt_of(x):
 # ====================== GEMINI API (text / voice / Veo video, direct REST, key = GEMINI_API_KEY) ======================
 API = env("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
 KEY = env("GEMINI_API_KEY")
-TTS_MODEL = env("TTS_MODEL", "gemini-3.8-flash-tts")
+# Tier 1 allows 10 requests/min and 100/day PER MODEL, so voices rotate over several TTS models (same voices, 3x the quota)
+TTS_MODELS = [m.strip() for m in env("TTS_MODEL", "gemini-3.8-flash-tts,gemini-3.8-flash-lite-tts,gemini-3.1-flash-tts-preview").split(",") if m.strip()]
 POOL = {"chat": int(env("CHAT_CONCURRENCY", "5")), "tts": int(env("TTS_CONCURRENCY", "2")), "vid": int(env("VID_CONCURRENCY", "3"))}
 _stop = {}      # task -> reason; set on errors that retrying cannot fix (bad key, no quota, unknown model)
 
@@ -138,7 +139,7 @@ def _do_chat(j):
     open(j["out"], "w", encoding="utf-8").write("".join(p.get("text", "") for p in r["candidates"][0]["content"]["parts"]))
 
 def _do_tts(j):
-    r = _call("POST", f"{API}/models/{TTS_MODEL}:generateContent", json={
+    r = _call("POST", f"{API}/models/{j["tts_model"]}:generateContent", json={
         "contents": [{"parts": [{"text": f"Say this in everyday colloquial Tamil, in the voice of {j['note']}: {j['text']}"}]}],
         "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": j["voice"]}}}}}).json()
     _wav_write(j["out"], base64.b64decode(r["candidates"][0]["content"]["parts"][0]["inlineData"]["data"]))
@@ -168,12 +169,13 @@ def gemini(task, jobs, timeout):
     def one(j):
         for n in range(6):
             if task in _stop: return
+            if task == "tts": j["tts_model"] = TTS_MODELS[(j["id"] + n) % len(TTS_MODELS)]
             try: _DO[task](j); return
             except Exception as e:
                 m = str(e); print(f"FAIL {task} {j['id']} try {n + 1}: {' '.join(m.split())[:150]} ... {' '.join(m.split())[-450:]}")
                 if re.search(r"HTTP (400|401|403|404)", m) or "RESOURCE_EXHAUSTED" in m and "quota" in m.lower() and "per day" in m.lower():
                     _stop[task] = m; return
-                time.sleep(5 * (n + 1) + (25 * (n + 1) if "HTTP 429" in m else 0))
+                time.sleep(5 * (n + 1) + ((10 if task == "tts" else 25) * (n + 1) if "HTTP 429" in m else 0))
                 if n >= 2 and "HTTP 429" not in m: return
     ex = cf.ThreadPoolExecutor(POOL[task]); futs = [ex.submit(one, j) for j in jobs]
     cf.wait(futs, timeout=timeout); ex.shutdown(wait=False, cancel_futures=True)
