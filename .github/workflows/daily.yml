@@ -10,6 +10,9 @@ on:
       slot:
         description: "Slot 1, 2 or 3"
         default: "1"
+      probe:
+        description: "true = make ONE test clip with spoken Tamil to see if the video model makes its own audio"
+        default: "false"
       dry_video:
         description: "true = free placeholder clips instead of paid Veo (layout test)"
         default: "false"
@@ -56,6 +59,7 @@ jobs:
         run: python pipeline.py
         env:
           SLOT: ${{ steps.plan.outputs.slot }}
+          PROBE: ${{ github.event.inputs.probe == 'true' }}
           DRY_VIDEO: ${{ github.event.inputs.dry_video == 'true' }}
           UPLOAD: ${{ github.event_name == 'schedule' || github.event.inputs.upload == 'true' }}
       - if: always() && steps.plan.outputs.slot != ''

@@ -168,6 +168,7 @@ def _do_vid(j):
     while o.get("status") not in ("completed", None) and time.time() < end:
         if o.get("status") in ("failed", "cancelled"): raise RuntimeError("video failed " + json.dumps(o)[:300])
         time.sleep(float(env("POLL_SEC", "8"))); o = _call("GET", f"{API}/interactions/{o['id']}").json()
+    if env("PROBE") == "true": print("PROBE ANSWER:", re.sub(r"[A-Za-z0-9+/=]{200,}", "<b64>", json.dumps(o))[:1500])
     v = _find_video(o)
     if not v: raise RuntimeError("no video in answer: " + json.dumps(o)[:500])
     open(j["out"], "wb").write(base64.b64decode(v[1]) if v[0] == "data" else _call("GET", v[1], timeout=300).content)
@@ -638,7 +639,20 @@ def upload(path, d, thumb=None):
     if up.status_code not in (200, 201): raise SystemExit("Upload failed")
     if thumb and os.path.exists(thumb): set_thumbnail(tok["access_token"], up.json().get("id"), thumb)
 
+def probe():
+    """One short Omni clip WITH a spoken Tamil line, to see whether the video model makes its own audio. Saved to out/probe.mp4."""
+    j = {"id": 0, "model": VIDEO_MODEL, "seconds": 8, "out": os.path.join(OUT, "probe.mp4"),
+         "prompt": "Cute 3D cartoon animation, bright forest. A baby elephant and a peacock stand under a mango tree. A warm storyteller narrator says in Tamil: \"ஒரு நாள் குட்டி யானை காட்டுல ஒரு பெரிய மாம்பழத்தைப் பாத்துச்சு!\" Then the baby elephant says in Tamil with a cute voice: \"ஹை! சூப்பர் மாம்பழம்!\" Natural sound, spoken Tamil dialogue, lip-synced, smooth movement, 16:9"}
+    ok = gemini("vid", [j], 900)
+    if not ok: raise SystemExit("probe failed")
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration:stream=codec_type,codec_name,width,height,r_frame_rate", "-of", "default=nw=1", j["out"]], capture_output=True, text=True).stdout
+    print("PROBE RESULT:", out.replace("\n", " | "))
+    wav = os.path.join(WORK, "probe.wav"); run(["ffmpeg", "-y", "-i", j["out"], "-vn", "-ac", "1", "-ar", "16000", wav])
+    r = subprocess.run(["ffmpeg", "-i", wav, "-af", "volumedetect", "-f", "null", "-"], capture_output=True, text=True).stderr
+    print("PROBE AUDIO:", [l.split("]")[-1].strip() for l in r.splitlines() if "mean_volume" in l or "max_volume" in l])
+
 def main():
+    if env("PROBE") == "true": return probe()
     t0, key = time.time(), ist_today()
     try:
         h = load_hist(); d = make_script(h); beats = d["beats"]
