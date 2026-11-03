@@ -140,7 +140,7 @@ def _do_chat(j):
 
 def _do_tts(j):
     r = _call("POST", f"{API}/models/{j["tts_model"]}:generateContent", json={
-        "contents": [{"parts": [{"text": f"Say this in everyday colloquial Tamil, in the voice of {j['note']}: {j['text']}"}]}],
+        "contents": [{"parts": [{"text": f"Say this in everyday colloquial Tamil at a brisk, lively pace, in the voice of {j['note']}: {j['text']}"}]}],
         "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": j["voice"]}}}}}).json()
     _wav_write(j["out"], base64.b64decode(r["candidates"][0]["content"]["parts"][0]["inlineData"]["data"]))
 
@@ -364,6 +364,14 @@ def make_voices(d, beats):
     if len(ok) < len(jobs): raise SystemExit(f"Gemini voice failed for {len(jobs) - len(ok)} of {len(jobs)} lines")
     with cf.ThreadPoolExecutor(4) as ex: list(ex.map(lambda a: _to_wav(a[0]["out"], a[1]["wav"]), zip(jobs, lines)))
     for l in lines: l["dur"] = wav_dur(l["wav"])
+    by = {}
+    for j, l in zip(jobs, lines): by.setdefault(j.get("tts_model"), []).append(l["dur"] / max(1, len(l["text"].split())))
+    print("voice seconds per word by model:", {k: round(sum(v) / len(v), 2) for k, v in by.items()})
+    total, target = sum(l["dur"] + 0.12 for l in lines[:-1]), float(env("STORY_MAX_SEC", "150"))
+    if total > target:      # a slow voice model: speed every line up (at most 1.3x) so the story stays short
+        f = min(1.3, total / target); print(f"story voice {total:.0f}s > {target:.0f}s, speeding up x{f:.2f}")
+        for l in lines:
+            tmp = l["wav"] + ".fast.wav"; run(["ffmpeg", "-y", "-i", l["wav"], "-af", f"atempo={f:.3f}", "-ar", str(SR), "-ac", "1", "-c:a", "pcm_s16le", tmp]); os.replace(tmp, l["wav"]); l["dur"] = wav_dur(l["wav"])
     return cta
 
 
