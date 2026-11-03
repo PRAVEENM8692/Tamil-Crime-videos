@@ -1,18 +1,25 @@
 {
  "titles": [
-  "மாங்காய் தோட்டத்தில் இலைப்போடி"
+  "மாங்காய் தோட்டத்தில் இலைப்போடி",
+  "மாந்தோப்புத் தாத்தாவும் தங்க மாம்பழமும்!"
  ],
  "fingerprints": [
-  "eating healthy food|a little ant|a mango grove|something precious gets lost"
+  "eating healthy food|a little ant|a mango grove|something precious gets lost",
+  "being humble|a slow tortoise and a fast rabbit|a mango grove|a helper in disguise"
  ],
  "recent_themes": [
-  "eating healthy food"
+  "eating healthy food",
+  "being humble"
  ],
  "recent_heroes": [
-  "a little ant"
+  "a little ant",
+  "a slow tortoise and a fast rabbit"
  ],
  "done": {
   "2026-11-02": [
+   1
+  ],
+  "2026-11-03": [
    1
   ]
  },
