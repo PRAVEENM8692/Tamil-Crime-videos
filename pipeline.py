@@ -120,7 +120,7 @@ def txt_of(x):
 API = env("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
 KEY = env("GEMINI_API_KEY")
 TTS_MODEL = env("TTS_MODEL", "gemini-2.5-flash-preview-tts")
-POOL = {"chat": int(env("CHAT_CONCURRENCY", "5")), "tts": int(env("TTS_CONCURRENCY", "4")), "vid": int(env("VID_CONCURRENCY", "3"))}
+POOL = {"chat": int(env("CHAT_CONCURRENCY", "5")), "tts": int(env("TTS_CONCURRENCY", "2")), "vid": int(env("VID_CONCURRENCY", "3"))}
 _stop = {}      # task -> reason; set on errors that retrying cannot fix (bad key, no quota, unknown model)
 
 def _call(method, url, **kw):
@@ -166,14 +166,15 @@ def gemini(task, jobs, timeout):
     for j in jobs:
         if os.path.exists(j["out"]): os.remove(j["out"])
     def one(j):
-        for n in range(3):
+        for n in range(6):
             if task in _stop: return
             try: _DO[task](j); return
             except Exception as e:
-                m = str(e); print(f"FAIL {task} {j['id']} try {n + 1}: {m[:160]}")
+                m = str(e); print(f"FAIL {task} {j['id']} try {n + 1}: {' '.join(m.split())[:400]}")
                 if re.search(r"HTTP (400|401|403|404)", m) or "RESOURCE_EXHAUSTED" in m and "quota" in m.lower() and "per day" in m.lower():
                     _stop[task] = m; return
-                time.sleep(5 * (n + 1) + (30 if "HTTP 429" in m else 0))
+                time.sleep(5 * (n + 1) + (25 * (n + 1) if "HTTP 429" in m else 0))
+                if n >= 2 and "HTTP 429" not in m: return
     ex = cf.ThreadPoolExecutor(POOL[task]); futs = [ex.submit(one, j) for j in jobs]
     cf.wait(futs, timeout=timeout); ex.shutdown(wait=False, cancel_futures=True)
     if task in _stop:
