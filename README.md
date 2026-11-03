@@ -7,7 +7,7 @@ Script, voices and animated clips all come straight from the Google Gemini API. 
 - `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` : YouTube upload
 
 ## Optional variables
-`LLM_MODEL` (gemini-3.8-flash), `TTS_MODEL` (gemini-2.5-flash-preview-tts), `VIDEO_MODEL` (veo-3.1-lite-generate-preview),
+`LLM_MODEL` (gemini-3.8-flash), `TTS_MODEL` (gemini-3.8-flash-tts), `VIDEO_MODEL` (veo-3.1-lite-generate-preview),
 `VIDEO_RES` (720p), `VID_CONCURRENCY` (3), `NARRATOR_VOICE`, `VOICE_MAP`, `INTRO`, `INTRO_SECONDS`, `CHANNEL_NAME`, `YT_PRIVACY`.
 
 ## Test in this order

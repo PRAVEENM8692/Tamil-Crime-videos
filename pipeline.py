@@ -119,14 +119,14 @@ def txt_of(x):
 # ====================== GEMINI API (text / voice / Veo video, direct REST, key = GEMINI_API_KEY) ======================
 API = env("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta")
 KEY = env("GEMINI_API_KEY")
-TTS_MODEL = env("TTS_MODEL", "gemini-2.5-flash-preview-tts")
+TTS_MODEL = env("TTS_MODEL", "gemini-3.8-flash-tts")
 POOL = {"chat": int(env("CHAT_CONCURRENCY", "5")), "tts": int(env("TTS_CONCURRENCY", "2")), "vid": int(env("VID_CONCURRENCY", "3"))}
 _stop = {}      # task -> reason; set on errors that retrying cannot fix (bad key, no quota, unknown model)
 
 def _call(method, url, **kw):
     r = requests.request(method, url, headers={"x-goog-api-key": KEY}, timeout=kw.pop("timeout", 120), **kw)
     if r.status_code >= 400:
-        raise RuntimeError(f"HTTP {r.status_code} {r.text[:300]}")
+        raise RuntimeError(f"HTTP {r.status_code} {r.text[:900]}")
     return r
 
 def _wav_write(path, pcm, rate=24000):
