@@ -15,7 +15,7 @@ def env(k, d=""):
 
 CHANNEL = env("CHANNEL_NAME", "Tamil Kids Story")
 SLOT = int(env("SLOT", "1") or 1)
-LLM_MODEL = env("LLM_MODEL", "gemini-2.5-flash")
+LLM_MODEL = env("LLM_MODEL", "gemini-3.8-flash")
 VIDEO_MODEL = env("VIDEO_MODEL", "veo-3.1-lite-generate-preview")      # cheapest Veo; clips come in 4, 6 or 8 seconds
 CLIP_LENGTHS, MAX_SLOW = (4, 6, 8), 1.25                     # a clip may be slowed up to 1.25x, so shorter (cheaper) clips can cover a scene
 
@@ -176,7 +176,10 @@ def gemini(task, jobs, timeout):
                 time.sleep(5 * (n + 1) + (30 if "HTTP 429" in m else 0))
     ex = cf.ThreadPoolExecutor(POOL[task]); futs = [ex.submit(one, j) for j in jobs]
     cf.wait(futs, timeout=timeout); ex.shutdown(wait=False, cancel_futures=True)
-    if task in _stop: print(f"{task} stopped: {_stop[task][:200]}")
+    if task in _stop:
+        print(f"{task} stopped: {_stop[task][:300]}")
+        try: print("Models your key can use:", ", ".join(sorted(m["name"][7:] for m in _call("GET", f"{API}/models?pageSize=200").json().get("models", []) if re.search(r"flash|tts|veo", m["name"]))))
+        except Exception as e: print("model list failed:", str(e)[:100])
     return {j["id"] for j in jobs if os.path.exists(j["out"]) and os.path.getsize(j["out"]) > 500}
 
 _chat_n = 0
