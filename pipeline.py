@@ -173,7 +173,7 @@ def gemini(task, jobs, timeout):
             try: _DO[task](j); return
             except Exception as e:
                 m = str(e); print(f"FAIL {task} {j['id']} try {n + 1}: {' '.join(m.split())[:150]} ... {' '.join(m.split())[-450:]}")
-                if re.search(r"HTTP (400|401|403|404)", m) or "RESOURCE_EXHAUSTED" in m and "quota" in m.lower() and "per day" in m.lower():
+                if re.search(r"HTTP (400|401|403|404)", m):
                     _stop[task] = m; return
                 time.sleep(5 * (n + 1) + ((10 if task == "tts" else 25) * (n + 1) if "HTTP 429" in m else 0))
                 if n >= 2 and "HTTP 429" not in m: return
