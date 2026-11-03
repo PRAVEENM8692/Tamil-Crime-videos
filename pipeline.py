@@ -140,7 +140,7 @@ def _do_chat(j):
 
 def _do_tts(j):
     r = _call("POST", f"{API}/models/{j["tts_model"]}:generateContent", json={
-        "contents": [{"parts": [{"text": f"Say this in everyday colloquial Tamil at a brisk, lively pace, in the voice of {j['note']}: {j['text']}"}]}],
+        "contents": [{"parts": [{"text": (f"Say in the voice of {j['note']}: " if env("TTS_STYLE") == "true" else "") + j["text"]}]}],
         "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": j["voice"]}}}}}).json()
     _wav_write(j["out"], base64.b64decode(r["candidates"][0]["content"]["parts"][0]["inlineData"]["data"]))
 
@@ -391,8 +391,9 @@ def make_clips(d, beats):
     def fit(i):
         src = jobs[i if i in ok else min(ok, key=lambda g: (abs(g - i), g > i))]["out"]; F = beats[i]["f1"] - beats[i]["f0"]; need = F / FPS
         dc = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", src], capture_output=True, text=True).stdout.strip() or need)
-        f = min(max(need / dc, 1.0), MAX_SLOW); out = os.path.join(WORK, f"clip{i}.mp4")
-        run(["ffmpeg", "-y", "-i", src, "-vf", f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setpts={f:.4f}*PTS,fps={FPS},tpad=stop_mode=clone:stop_duration={need:.2f}",
+        pp = dc * MAX_SLOW < need       # clip too short for the voice: play it forwards then backwards instead of freezing on the last frame
+        f = min(max(need / (2 * dc if pp else dc), 1.0), MAX_SLOW); out = os.path.join(WORK, f"clip{i}.mp4")
+        run(["ffmpeg", "-y", "-i", src, "-vf", ("split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1," if pp else "") + f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setpts={f:.4f}*PTS,fps={FPS},tpad=stop_mode=clone:stop_duration={need:.2f}",
              "-frames:v", str(F), "-threads", "2"] + VENC + [out])
         return out
     with cf.ThreadPoolExecutor(3) as ex: return list(ex.map(fit, range(N)))
