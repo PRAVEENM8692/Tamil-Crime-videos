@@ -1,26 +1,31 @@
 {
  "titles": [
   "மாங்காய் தோட்டத்தில் இலைப்போடி",
-  "மாந்தோப்புத் தாத்தாவும் தங்க மாம்பழமும்!"
+  "மாந்தோப்புத் தாத்தாவும் தங்க மாம்பழமும்!",
+  "நிலாவின் வண்ண அணிலும் குட்டித் தொட்டியும்!"
  ],
  "fingerprints": [
   "eating healthy food|a little ant|a mango grove|something precious gets lost",
-  "being humble|a slow tortoise and a fast rabbit|a mango grove|a helper in disguise"
+  "being humble|a slow tortoise and a fast rabbit|a mango grove|a helper in disguise",
+  "kindness to animals|a girl named Nila who loves painting|a school ground|preparing for a festival"
  ],
  "recent_themes": [
   "eating healthy food",
-  "being humble"
+  "being humble",
+  "kindness to animals"
  ],
  "recent_heroes": [
   "a little ant",
-  "a slow tortoise and a fast rabbit"
+  "a slow tortoise and a fast rabbit",
+  "a girl named Nila who loves painting"
  ],
  "done": {
   "2026-11-02": [
    1
   ],
   "2026-11-03": [
-   1
+   1,
+   2
   ]
  },
  "tries": {
