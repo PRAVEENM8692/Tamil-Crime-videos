@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       do:
-        description: "check | kids_off | private_old | about"
+        description: "check | kids_off | private_old | about | banner | about_banner"
         default: "check"
 permissions:
   contents: read
