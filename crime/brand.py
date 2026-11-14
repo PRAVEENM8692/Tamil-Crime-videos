@@ -70,9 +70,16 @@ fn = font(TA, 132); l, t, r, bb = fn.getbbox(NAME)
 if r - l > sw - 380: fn = font(TA, int(132 * (sw - 380) / (r - l))); l, t, r, bb = fn.getbbox(NAME)
 tx = sx0 + 350; d.text((tx - l, sy0 + 88 - t), NAME, font=fn, fill=CREAM)
 d.rectangle([tx, sy0 + 88 + (bb - t) + 28, tx + 150, sy0 + 88 + (bb - t) + 38], fill=YEL)
-fl = font(TA, 52); l2, t2, r2, b2 = fl.getbbox(LINE)
-if r2 - l2 > sw - 380 - 60: fl = font(TA, int(52 * (sw - 380 - 60) / (r2 - l2))); l2, t2, r2, b2 = fl.getbbox(LINE)
-d.text((tx - l2, sy0 + 88 + (bb - t) + 62 - t2), LINE, font=fl, fill=YEL)
+parts = [x.strip() for x in LINE.split("·")]; gap = 46      # the Tamil font has no middle-dot letter, so the dot is drawn
+size = 52
+while True:
+    fl = font(TA, size); ws = [fl.getbbox(x) for x in parts]; total = sum(w[2] - w[0] for w in ws) + gap * (len(parts) - 1)
+    if total <= sw - 380 - 60 or size <= 30: break
+    size -= 2
+x = tx; y = sy0 + 88 + (bb - t) + 62
+for k, (txt, w) in enumerate(zip(parts, ws)):
+    d.text((x - w[0], y - min(v[1] for v in ws)), txt, font=fl, fill=YEL); x += w[2] - w[0]
+    if k + 1 < len(parts): cy = y + size * 0.5; d.ellipse([x + gap / 2 - 6, cy - 6, x + gap / 2 + 6, cy + 6], fill=YEL); x += gap
 st = stamp("CASE CLOSED", 40).rotate(-7, resample=Image.BICUBIC, expand=True); b.paste(st, (sx0 + sw - st.width - 10, sy0 + sh_ - st.height + 4), st)
 b = b.convert("RGB"); b.save("out/banner.png")
 b.crop((sx0, sy0, sx0 + sw, sy0 + sh_)).save("out/banner_phone_preview.png")
