@@ -83,7 +83,8 @@ def declick(src, dst):
     for r in runs:
         if merged and r[0] - merged[-1][1] < 4: merged[-1][1] = r[1]      # gaps under 10 ms belong to the same sound
         else: merged.append(r)
-    cut = 0
+    import sys; sys.path.insert(0, 'crime'); import tts_clean
+    cut = tts_clean.strip_all(x, sr)      # Gemini's loud noise burst at the end of every clip (the squeak)
     if np.abs(x[:int(sr * 0.04)]).max() > 1500: x[:int(sr * 0.04)] = 0; cut += 1     # the click at the very start of the file
     for k, (a, b) in enumerate(merged):
         before = a - merged[k - 1][1] if k else 10 ** 6; after = merged[k + 1][0] - b if k + 1 < len(merged) else 10 ** 6

@@ -25,6 +25,13 @@ def pcm_of(data):
         if i > 0: return data[i + 8:]
     return data
 
+def clean(pcm):
+    """Cut Gemini's loud noise burst at the end of the clip (heard as a squeak) - see tts_clean.py."""
+    import numpy as np; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); import tts_clean
+    x = np.frombuffer(pcm, dtype=np.int16).copy(); ms = tts_clean.strip_tail(x, 24000)
+    if ms: print(f'  end burst silenced ({ms} ms)')
+    return x.tobytes()
+
 def tts(text):
     last = ""
     for n in range(8):
@@ -50,7 +57,7 @@ for num, name, text in secs:
     if only and num not in only: continue
     pcm = b""
     for p in pieces(text):
-        a, model = tts(p); pcm += a + b"\0" * int(24000 * 2 * 0.35)      # a short breath between pieces
+        a, model = tts(p); a = clean(a); pcm += a + b"\0" * int(24000 * 2 * 0.35)      # a short breath between pieces
         time.sleep(7)       # stay under the per-minute limit
     wav = f"out/{num}_{name}.wav"
     with wave.open(wav, "wb") as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(24000); w.writeframes(pcm)
