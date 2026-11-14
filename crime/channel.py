@@ -11,7 +11,12 @@ API = "https://www.googleapis.com/youtube/v3"
 def token():
     r = requests.post("https://oauth2.googleapis.com/token", timeout=60, data={"client_id": os.environ["YT_CLIENT_ID"], "client_secret": os.environ["YT_CLIENT_SECRET"],
                       "refresh_token": os.environ["YT_REFRESH_TOKEN"], "grant_type": "refresh_token"})
-    if r.status_code >= 400: raise SystemExit(f"YouTube key refused: {r.status_code} {r.text[:200]}")
+    if r.status_code >= 400:
+        cid, sec, rt = (os.environ.get(k, "") for k in ("YT_CLIENT_ID", "YT_CLIENT_SECRET", "YT_REFRESH_TOKEN"))
+        def shape(v, good_start, good_end=""):      # only the shape of each key is printed, never its value
+            return f"length {len(v)}, spaces/newlines/quotes around it: {v != v.strip() or chr(34) in v or chr(39) in v}, looks right at the start: {v.startswith(good_start)}" + (f", at the end: {v.endswith(good_end)}" if good_end else "")
+        print("client id    :", shape(cid, "", ".apps.googleusercontent.com")); print("client secret:", shape(sec, "GOCSPX-")); print("refresh token:", shape(rt, "1//"))
+        raise SystemExit(f"YouTube key refused: {r.status_code} {r.text[:200]}")
     return r.json()["access_token"]
 
 T = token(); H = {"Authorization": f"Bearer {T}"}
