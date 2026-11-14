@@ -12,7 +12,7 @@ jobs:
       - run: |
           sudo apt-get update -y
           sudo apt-get install -y ffmpeg fonts-noto-core libass9
-          pip install pillow
+          pip install pillow numpy
       - name: Get the pictures and the narration
         run: |
           mkdir -p pics voice
