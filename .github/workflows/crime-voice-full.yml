@@ -1,0 +1,30 @@
+name: Crime Story Full Voice
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Section numbers to make, comma separated (empty = all)"
+        default: ""
+permissions:
+  contents: write
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      TTS_MODEL: ${{ vars.TTS_MODEL }}
+      ONLY: ${{ github.event.inputs.only }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
+          pip install requests
+      - run: python crime/voice_full.py
+      - name: Save the voice files to the voice-alavandar branch
+        run: |
+          mkdir -p /tmp/s && cp out/* /tmp/s/
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git checkout --orphan voice-alavandar && git rm -rfq . && cp /tmp/s/* . && git add *.mp3 durations.json
+          git commit -qm "Alavandar voice" && git push -f origin voice-alavandar
