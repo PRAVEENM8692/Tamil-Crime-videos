@@ -1,12 +1,19 @@
 name: Crime Story Build Video
 on:
   workflow_dispatch:
+    inputs:
+      case:
+        description: "case folder name under crime/ (default alavandar)"
+        default: "alavandar"
 permissions:
   contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    env:
+      CASE: ${{ github.event.inputs.case }}
+      NAME: ${{ github.event.inputs.case }}
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -16,13 +23,13 @@ jobs:
       - name: Get the pictures and the narration
         run: |
           mkdir -p pics voice
-          git fetch -q --depth 1 origin pics-alavandar && git --work-tree=pics checkout FETCH_HEAD -- . && git reset -q
-          git fetch -q --depth 1 origin voice-alavandar && git --work-tree=voice checkout FETCH_HEAD -- . && git reset -q
+          git fetch -q --depth 1 origin pics-${CASE} && git --work-tree=pics checkout FETCH_HEAD -- . && git reset -q
+          git fetch -q --depth 1 origin voice-${CASE} && git --work-tree=voice checkout FETCH_HEAD -- . && git reset -q
           fc-list | grep -i "Noto Sans Tamil" | head -2
       - run: python crime/build.py
-      - name: Save the video to the video-alavandar branch
+      - name: Save the video to the video-${CASE} branch
         run: |
-          cp out/alavandar.mp4 /tmp/
+          cp out/${CASE}.mp4 /tmp/
           git config user.name "github-actions" && git config user.email "actions@github.com"
-          git checkout -q --orphan video-alavandar && git rm -rfq . && cp /tmp/alavandar.mp4 . && git add alavandar.mp4
-          git commit -qm "Alavandar video" && git push -f origin video-alavandar
+          git checkout -q --orphan video-${CASE} && git rm -rfq . && cp /tmp/${CASE}.mp4 . && git add ${CASE}.mp4
+          git commit -qm "${CASE} video" && git push -f origin video-${CASE}
