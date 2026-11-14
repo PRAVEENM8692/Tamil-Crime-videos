@@ -1,0 +1,28 @@
+name: Crime Video Upload (private)
+on:
+  workflow_dispatch:
+    inputs:
+      case:
+        description: "case folder, e.g. alavandar (the built video comes from the branch video-<case>)"
+        default: "alavandar"
+permissions:
+  contents: read
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      CASE: ${{ github.event.inputs.case }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install requests
+      - name: Get the built video from its branch
+        run: |
+          git fetch origin "video-${CASE}"
+          mkdir -p out
+          git show "FETCH_HEAD:${CASE}.mp4" > "out/${CASE}.mp4"
+          ls -la out
+      - run: python crime/upload.py
