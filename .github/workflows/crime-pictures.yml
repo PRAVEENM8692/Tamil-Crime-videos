@@ -1,0 +1,33 @@
+name: Crime Story Pictures
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Scene numbers to draw, comma separated (empty = all that are still missing)"
+        default: "2,7,21"
+permissions:
+  contents: write
+jobs:
+  pictures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      ONLY: ${{ github.event.inputs.only }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install pillow
+      - name: Bring back pictures drawn earlier
+        run: |
+          mkdir -p out
+          if git fetch -q --depth 1 origin pics-alavandar; then git --work-tree=out checkout FETCH_HEAD -- . && git reset -q; fi
+      - run: python crime/pictures.py
+      - name: Save the pictures to the pics-alavandar branch
+        if: always()
+        run: |
+          ls out/*.jpg >/dev/null 2>&1 || exit 0
+          mkdir -p /tmp/s && cp out/*.jpg /tmp/s/
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git checkout -q --orphan pics-alavandar && git rm -rfq . && cp /tmp/s/*.jpg . && git add *.jpg
+          git commit -qm "Alavandar pictures" && git push -f origin pics-alavandar
