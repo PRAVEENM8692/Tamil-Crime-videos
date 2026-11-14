@@ -34,7 +34,8 @@ for s in json.load(open(SCENES, encoding="utf-8"))["shots"]:
     f = f"out/{s['n']:02d}.jpg"
     if s["n"] in redo and os.path.exists(f): os.remove(f)
     if (only and s["n"] not in only) or (not only and os.path.exists(f)): continue
-    if draw(STYLE + s["scene"] + END, f): done.append(s["n"]); fails = 0; print(f"picture {s['n']:02d} drawn")
+    style = STYLE.replace("expressive faces, ", "") + "Objects only, absolutely no people, no faces, no portraits. " if s["scene"].startswith(("Still life", "A clean anatomy", "Empty")) else STYLE
+    if draw(style + s["scene"] + END, f): done.append(s["n"]); fails = 0; print(f"picture {s['n']:02d} drawn")
     else:
         fails += 1
         if fails >= 3: print("3 failures in a row (daily free limit?), stopping"); break
