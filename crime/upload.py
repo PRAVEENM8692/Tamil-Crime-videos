@@ -5,7 +5,7 @@ import json, os, requests
 
 CASE = os.environ.get("CASE") or "alavandar"
 VIDEO = os.environ.get("VIDEO") or f"out/{CASE}.mp4"
-THUMB = os.environ.get("THUMB") or "assets/crime_ep1_thumb.jpg"
+THUMB = os.environ.get("THUMB") or f"assets/crime_{CASE}_thumb.jpg"
 meta = json.load(open(f"crime/{CASE}/youtube.json", encoding="utf-8"))
 API = "https://www.googleapis.com/youtube/v3"
 

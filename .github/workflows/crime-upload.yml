@@ -16,6 +16,7 @@ jobs:
       YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
       YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
       CASE: ${{ github.event.inputs.case }}
+      THUMB: assets/crime_${{ github.event.inputs.case }}_thumb.jpg
     steps:
       - uses: actions/checkout@v4
       - run: pip install requests
