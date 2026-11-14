@@ -6,7 +6,7 @@ CF_ID, CF_TOKEN = os.environ.get("CF_ACCOUNT_ID"), os.environ.get("CF_API_TOKEN"
 SCENES = os.environ.get("SCENES") or "crime/alavandar/scenes.json"
 STYLE = ("Indian crime comic book illustration, bold clean black ink outlines, flat colours with soft cel shading, "
          "muted vintage palette of sepia, teal and amber, dramatic film-noir lighting, richly detailed background, expressive faces, cinematic. ")
-END = " Nothing cut off at the frame edges. No blood, no gore. No text, no letters, no watermark."
+END = " Clean floor, calm tidy scene. Nothing cut off at the frame edges. No text, no letters, no numbers, no captions, no watermark, no border."
 
 def draw(prompt, dst):
     from PIL import Image
@@ -26,11 +26,13 @@ def draw(prompt, dst):
 
 if not (CF_ID and CF_TOKEN):
     raise SystemExit("CF_ACCOUNT_ID / CF_API_TOKEN secrets are not set on this repo (Settings > Secrets and variables > Actions)")
+redo = {int(x) for x in (os.environ.get("REDO") or "").replace(" ", "").split(",") if x}
 only = {int(x) for x in (os.environ.get("ONLY") or "").replace(" ", "").split(",") if x}
 os.makedirs("out", exist_ok=True)
 done, fails = [], 0
 for s in json.load(open(SCENES, encoding="utf-8"))["shots"]:
     f = f"out/{s['n']:02d}.jpg"
+    if s["n"] in redo and os.path.exists(f): os.remove(f)
     if (only and s["n"] not in only) or (not only and os.path.exists(f)): continue
     if draw(STYLE + s["scene"] + END, f): done.append(s["n"]); fails = 0; print(f"picture {s['n']:02d} drawn")
     else:

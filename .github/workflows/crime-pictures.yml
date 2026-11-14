@@ -4,7 +4,10 @@ on:
     inputs:
       only:
         description: "Scene numbers to draw, comma separated (empty = all that are still missing)"
-        default: "2,7,21"
+        default: ""
+      redo:
+        description: "Scene numbers to draw again even if a picture exists"
+        default: ""
 permissions:
   contents: write
 jobs:
@@ -15,6 +18,7 @@ jobs:
       CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
       CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       ONLY: ${{ github.event.inputs.only }}
+      REDO: ${{ github.event.inputs.redo }}
     steps:
       - uses: actions/checkout@v4
       - run: pip install pillow
