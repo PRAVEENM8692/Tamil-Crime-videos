@@ -1,0 +1,22 @@
+name: Crime Channel Settings
+on:
+  workflow_dispatch:
+    inputs:
+      do:
+        description: "check | kids_off | private_old | about"
+        default: "check"
+permissions:
+  contents: read
+jobs:
+  channel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      DO: ${{ github.event.inputs.do }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install requests
+      - run: python crime/channel.py
