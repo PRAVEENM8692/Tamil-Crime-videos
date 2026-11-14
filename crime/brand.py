@@ -109,25 +109,26 @@ for yy, ang in ((int(H * 0.17), -4), (int(H * 0.86), 3)):      # crime tape acro
 mark = folder(340).rotate(-6, resample=Image.BICUBIC); b = drop(b, mark, (sx0 - 6, sy0 + 34), blur=14)
 tk = tick(96); b = drop(b, tk, (sx0 + 228, sy0 + 66), blur=8, off=(4, 6), alpha=100)
 d = ImageDraw.Draw(b); tx = sx0 + 350; avail = sw - 350 - 10
-size = 124
+# All banner wording is in English letters (the owner's choice); the name is what people type when they search.
+E1, E2, E3 = "SOLVED", "CRIME FILES", "TAMIL"
+size = 118
 while True:      # the name on one line: first word in yellow, the rest in white
-    fn = font(TA, size); b1, b2 = fn.getbbox(W1), fn.getbbox(W2); sp = int(size * 0.28); total = (b1[2] - b1[0]) + sp + (b2[2] - b2[0])
+    fn = font(EN, size); b1, b2 = fn.getbbox(E1), fn.getbbox(E2); sp = int(size * 0.32); total = (b1[2] - b1[0]) + sp + (b2[2] - b2[0])
     if total <= avail or size <= 60: break
     size -= 2
-top = min(b1[1], b2[1]); bot = max(b1[3], b2[3]); ny = sy0 + 46
-d.text((tx - b1[0] + 4, ny - top + 5), W1, font=fn, fill=BLACK); d.text((tx + (b1[2] - b1[0]) + sp - b2[0] + 4, ny - top + 5), W2, font=fn, fill=BLACK)
-d.text((tx - b1[0], ny - top), W1, font=fn, fill=YEL); d.text((tx + (b1[2] - b1[0]) + sp - b2[0], ny - top), W2, font=fn, fill=WHITE)
-# second row: a green pill with the language, then the channel name in English letters (what people type when they search)
-fp = font(TA, 50); pb = fp.getbbox(W3); pw, ph = (pb[2] - pb[0]) + 56, 78; uy = ny + (bot - top) + 30
-d.rounded_rectangle([tx, uy, tx + pw, uy + ph], radius=ph // 2, fill=GREEN); d.text((tx + 28 - pb[0], uy + (ph - (pb[3] - pb[1])) / 2 - pb[1]), W3, font=fp, fill=WHITE)
-fe = font(EN, 40); eb = fe.getbbox("SOLVED CRIME FILES - TAMIL"); d.text((tx + pw + 28 - eb[0], uy + (ph - (eb[3] - eb[1])) / 2 - eb[1]), "SOLVED CRIME FILES - TAMIL", font=fe, fill=YEL)
-uy = uy + ph - 12
-parts = [x.strip() for x in LINE.split("·")]; gap = 46; size2 = 50      # the Tamil font has no middle-dot letter, so the dot is drawn
+top = min(b1[1], b2[1]); bot = max(b1[3], b2[3]); ny = sy0 + 52
+d.text((tx - b1[0] + 4, ny - top + 5), E1, font=fn, fill=BLACK); d.text((tx + (b1[2] - b1[0]) + sp - b2[0] + 4, ny - top + 5), E2, font=fn, fill=BLACK)
+d.text((tx - b1[0], ny - top), E1, font=fn, fill=YEL); d.text((tx + (b1[2] - b1[0]) + sp - b2[0], ny - top), E2, font=fn, fill=WHITE)
+# second row: a green pill with the language, then a short line
+fp = font(EN, 46); pb = fp.getbbox(E3); pw, ph = (pb[2] - pb[0]) + 60, 76; uy = ny + (bot - top) + 34
+d.rounded_rectangle([tx, uy, tx + pw, uy + ph], radius=ph // 2, fill=GREEN); d.text((tx + 30 - pb[0], uy + (ph - (pb[3] - pb[1])) / 2 - pb[1]), E3, font=fp, fill=WHITE)
+fe = font(EN, 42); sub = "TRUE CRIME STORIES IN TAMIL"; eb = fe.getbbox(sub); d.text((tx + pw + 30 - eb[0], uy + (ph - (eb[3] - eb[1])) / 2 - eb[1]), sub, font=fe, fill=YEL)
+parts = ["Real cases", "Court verdicts", "How the police cracked them"]; gap = 50; size2 = 42
 while True:
-    fl = font(TA, size2); ws = [fl.getbbox(x) for x in parts]; tot = sum(w[2] - w[0] for w in ws) + gap * (len(parts) - 1)
-    if tot <= avail - 60 or size2 <= 30: break
+    fl = font(EN, size2); ws = [fl.getbbox(x) for x in parts]; tot = sum(w[2] - w[0] for w in ws) + gap * (len(parts) - 1)
+    if tot <= avail - 330 or size2 <= 26: break
     size2 -= 2
-x = tx; y = uy + 44
+x = tx; y = uy + ph + 36
 for k, (txt, w) in enumerate(zip(parts, ws)):
     d.text((x - w[0], y - min(v[1] for v in ws)), txt, font=fl, fill=CREAM); x += w[2] - w[0]
     if k + 1 < len(parts): cy = y + size2 * 0.5; d.ellipse([x + gap / 2 - 7, cy - 7, x + gap / 2 + 7, cy + 7], fill=YEL); x += gap
