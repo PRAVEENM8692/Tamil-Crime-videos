@@ -1,0 +1,24 @@
+name: Crime Thumbnail Replace
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "YouTube video id"
+      thumb:
+        description: "thumbnail path in the repo"
+permissions:
+  contents: read
+jobs:
+  set:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+      YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+      YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+      VIDEO_ID: ${{ github.event.inputs.video_id }}
+      THUMB: ${{ github.event.inputs.thumb }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install requests
+      - run: python crime/thumb_set.py
