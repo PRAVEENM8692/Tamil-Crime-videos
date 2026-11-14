@@ -1,0 +1,26 @@
+name: Crime Channel Art
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  art:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update -y
+          sudo apt-get install -y fonts-noto-core fonts-dejavu-core
+          pip install pillow
+      - run: |
+          export TA_FONT="$(fc-list ':family=Noto Sans Tamil:style=Bold' file | head -1 | cut -d: -f1)"
+          export EN_FONT="$(fc-list ':family=DejaVu Sans:style=Bold' file | head -1 | cut -d: -f1)"
+          echo "fonts: $TA_FONT | $EN_FONT"
+          python crime/brand.py
+      - name: Save the pictures to the brand branch
+        run: |
+          mkdir -p /tmp/s && cp out/*.png /tmp/s/
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git checkout -q --orphan brand && git rm -rfq . && cp /tmp/s/*.png . && git add *.png
+          git commit -qm "channel art" && git push -f origin brand
