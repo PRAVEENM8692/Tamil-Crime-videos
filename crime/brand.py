@@ -1,11 +1,13 @@
-"""Channel art for 'சால்வ்டு ஃபைல்ஸ் தமிழ்' (Solved Files Tamil): logo (a case folder stamped SOLVED, with a green tick) and banner.
+"""Channel art for 'சால்வ்டு க்ரைம் ஃபைல்ஸ் - தமிழ்' (Solved Crime Files - Tamil): logo (a case folder stamped SOLVED with a green tick,
+in front of a yellow crime-scene tape) and banner.
 Colourful but tidy: violet-to-blue background, amber folder, red stamp, green tick, yellow accents. Writes out/*.png."""
 import os
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, features
 
 TA = os.environ.get("TA_FONT") or "/usr/share/fonts/truetype/noto/NotoSansTamil-Bold.ttf"
 EN = os.environ.get("EN_FONT") or "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-W1, W2 = "சால்வ்டு", "ஃபைல்ஸ் தமிழ்"
+W1, W2, W3 = "சால்வ்டு", "க்ரைம் ஃபைல்ஸ்", "தமிழ்"
+TAPE_Y, BLACK = (250, 204, 21), (17, 17, 17)
 LINE = "தீர்ப்பு வந்த உண்மை வழக்குகள் · துப்பறிந்த விதம்"
 C_A, C_B, C_C = (76, 29, 149), (30, 64, 175), (13, 148, 136)        # violet -> blue -> teal
 FOLD, FOLD2, FOLD3 = (255, 196, 46), (245, 158, 11), (217, 119, 6)
@@ -38,6 +40,17 @@ def stamp(text, size, color=RED, bg=WHITE):
     d.text(((Wd - tw) / 2 - l, (Hh - th) / 2 - t), text, font=f, fill=color)
     return im
 
+def tape(length, h, text="CRIME FILES"):
+    """A strip of yellow crime-scene tape with the words repeated along it."""
+    im = Image.new("RGBA", (length, h), TAPE_Y + (255,)); d = ImageDraw.Draw(im)
+    d.rectangle([0, 0, length, int(h * 0.09)], fill=BLACK); d.rectangle([0, h - int(h * 0.09), length, h], fill=BLACK)
+    f = font(EN, int(h * 0.50)); l, t, r, b = f.getbbox(text); step = (r - l) + int(h * 1.5); x = int(h * 0.4)
+    while x < length:
+        d.text((x - l, (h - (b - t)) / 2 - t), text, font=f, fill=BLACK)
+        cx = x + (r - l) + int(h * 0.75); q = h * 0.16; d.polygon([(cx, h / 2 - q), (cx + q, h / 2), (cx, h / 2 + q), (cx - q, h / 2)], fill=BLACK)
+        x += step
+    return im
+
 def tick(S):
     """A green badge with a white tick."""
     im = Image.new("RGBA", (S, S), (0, 0, 0, 0)); d = ImageDraw.Draw(im)
@@ -68,6 +81,8 @@ def drop(im, layer, pos, blur=16, off=(10, 18), alpha=120):
 def logo(S=1600):
     im = gradient(S, S, [C_A, C_B, C_C], diag=1.0).convert("RGBA")
     im = glow(im, S * 0.5, S * 0.46, S * 0.42, (255, 255, 255), 46)
+    tp = tape(int(S * 1.6), int(S * 0.115)).rotate(24, resample=Image.BICUBIC, expand=True)      # tape running behind the folder, corner to corner
+    im = drop(im, tp, (int(S / 2 - tp.width / 2), int(S * 0.52 - tp.height / 2)), blur=14, off=(6, 12), alpha=110)
     f = folder(int(S * 0.72)).rotate(-6, resample=Image.BICUBIC); im = drop(im, f, (int(S * 0.14), int(S * 0.09)), blur=22)
     st = stamp("SOLVED", int(S * 0.12)).rotate(-14, resample=Image.BICUBIC, expand=True)
     im = drop(im, st, (int(S * 0.52 - st.width / 2), int(S * 0.61 - st.height / 2)), blur=12, off=(6, 10), alpha=110)
@@ -89,24 +104,30 @@ ov = Image.new("RGBA", (W, H), (0, 0, 0, 0)); od = ImageDraw.Draw(ov)
 for k in range(-6, 60):      # faint diagonal stripes
     x = k * 90; od.line([x, H, x + 520, 0], fill=(255, 255, 255, 10), width=26)
 b = Image.alpha_composite(b, ov)
+for yy, ang in ((int(H * 0.17), -4), (int(H * 0.86), 3)):      # crime tape across the top and bottom (seen on computers and TVs, outside the phone area)
+    tp = tape(W + 400, 92).rotate(ang, resample=Image.BICUBIC, expand=True); b = drop(b, tp, (-200, yy - tp.height // 2), blur=10, off=(4, 8), alpha=100)
 mark = folder(340).rotate(-6, resample=Image.BICUBIC); b = drop(b, mark, (sx0 - 6, sy0 + 34), blur=14)
 tk = tick(96); b = drop(b, tk, (sx0 + 228, sy0 + 66), blur=8, off=(4, 6), alpha=100)
 d = ImageDraw.Draw(b); tx = sx0 + 350; avail = sw - 350 - 10
-size = 128
+size = 124
 while True:      # the name on one line: first word in yellow, the rest in white
     fn = font(TA, size); b1, b2 = fn.getbbox(W1), fn.getbbox(W2); sp = int(size * 0.28); total = (b1[2] - b1[0]) + sp + (b2[2] - b2[0])
     if total <= avail or size <= 60: break
-    size -= 4
-top = min(b1[1], b2[1]); bot = max(b1[3], b2[3]); ny = sy0 + 76
-d.text((tx - b1[0] + 4, ny - top + 5), W1, font=fn, fill=(0, 0, 0, 90)); d.text((tx + (b1[2] - b1[0]) + sp - b2[0] + 4, ny - top + 5), W2, font=fn, fill=(0, 0, 0, 90))
+    size -= 2
+top = min(b1[1], b2[1]); bot = max(b1[3], b2[3]); ny = sy0 + 46
+d.text((tx - b1[0] + 4, ny - top + 5), W1, font=fn, fill=BLACK); d.text((tx + (b1[2] - b1[0]) + sp - b2[0] + 4, ny - top + 5), W2, font=fn, fill=BLACK)
 d.text((tx - b1[0], ny - top), W1, font=fn, fill=YEL); d.text((tx + (b1[2] - b1[0]) + sp - b2[0], ny - top), W2, font=fn, fill=WHITE)
-uy = ny + (bot - top) + 26; d.rounded_rectangle([tx, uy, tx + 170, uy + 12], radius=6, fill=GREEN)
+# second row: a green pill with the language, then the channel name in English letters (what people type when they search)
+fp = font(TA, 50); pb = fp.getbbox(W3); pw, ph = (pb[2] - pb[0]) + 56, 78; uy = ny + (bot - top) + 30
+d.rounded_rectangle([tx, uy, tx + pw, uy + ph], radius=ph // 2, fill=GREEN); d.text((tx + 28 - pb[0], uy + (ph - (pb[3] - pb[1])) / 2 - pb[1]), W3, font=fp, fill=WHITE)
+fe = font(EN, 40); eb = fe.getbbox("SOLVED CRIME FILES - TAMIL"); d.text((tx + pw + 28 - eb[0], uy + (ph - (eb[3] - eb[1])) / 2 - eb[1]), "SOLVED CRIME FILES - TAMIL", font=fe, fill=YEL)
+uy = uy + ph - 12
 parts = [x.strip() for x in LINE.split("·")]; gap = 46; size2 = 50      # the Tamil font has no middle-dot letter, so the dot is drawn
 while True:
     fl = font(TA, size2); ws = [fl.getbbox(x) for x in parts]; tot = sum(w[2] - w[0] for w in ws) + gap * (len(parts) - 1)
     if tot <= avail - 60 or size2 <= 30: break
     size2 -= 2
-x = tx; y = uy + 40
+x = tx; y = uy + 44
 for k, (txt, w) in enumerate(zip(parts, ws)):
     d.text((x - w[0], y - min(v[1] for v in ws)), txt, font=fl, fill=CREAM); x += w[2] - w[0]
     if k + 1 < len(parts): cy = y + size2 * 0.5; d.ellipse([x + gap / 2 - 7, cy - 7, x + gap / 2 + 7, cy + 7], fill=YEL); x += gap
