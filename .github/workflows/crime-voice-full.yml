@@ -25,7 +25,7 @@ jobs:
       - run: |
           sudo apt-get update -y
           sudo apt-get install -y ffmpeg
-          pip install requests
+          pip install requests numpy
       - run: python crime/voice_full.py
       - name: Save the voice files to the voice-${CASE} branch
         run: |
