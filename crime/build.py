@@ -54,9 +54,9 @@ PlayResY: {H}
 WrapStyle: 0
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: tag,{FONT},34,&H0000E6FF,&H0,&HD0101010,&H0,1,0,0,0,100,100,0,0,3,10,0,1,40,40,46,1
-Style: big,{FONT},46,&H00FFFFFF,&H0,&HD8101010,&H0,1,0,0,0,100,100,0,0,3,14,0,2,80,80,70,1
-Style: card,{FONT},44,&H00FFFFFF,&H0,&HE6101010,&H0,1,0,0,0,100,100,0,0,3,22,0,5,120,120,0,1
+Style: tag,{FONT},40,&H0000E6FF,&H0,&H28101010,&H0,1,0,0,0,100,100,0,0,3,10,0,1,40,40,46,1
+Style: big,{FONT},52,&H00FFFFFF,&H0,&H20101010,&H0,1,0,0,0,100,100,0,0,3,14,0,2,80,80,70,1
+Style: card,{FONT},48,&H00FFFFFF,&H0,&H18101010,&H0,1,0,0,0,100,100,0,0,3,22,0,5,120,120,0,1
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
