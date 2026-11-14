@@ -17,6 +17,14 @@ def pieces(text):
         cur = (cur + " " + line).strip()
     return out + ([cur] if cur else [])
 
+def pcm_of(data):
+    """Gemini may answer with a complete WAV file (44-byte RIFF header first) instead of bare samples.
+    Played as samples, that header is a loud click at the start of every clip, so cut it off."""
+    if data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        i = data.find(b"data", 12)
+        if i > 0: return data[i + 8:]
+    return data
+
 def tts(text):
     last = ""
     for n in range(8):
@@ -25,7 +33,7 @@ def tts(text):
             "contents": [{"parts": [{"text": text}]}],
             "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": VOICE}}}}})
         if r.status_code < 400:
-            try: return base64.b64decode(r.json()["candidates"][0]["content"]["parts"][0]["inlineData"]["data"]), model
+            try: return pcm_of(base64.b64decode(r.json()["candidates"][0]["content"]["parts"][0]["inlineData"]["data"])), model
             except Exception as e: last = f"no audio in answer: {str(e)[:80]}"
         else:
             last = f"HTTP {r.status_code} {r.text[:300]}"
@@ -42,8 +50,7 @@ for num, name, text in secs:
     if only and num not in only: continue
     pcm = b""
     for p in pieces(text):
-        a, model = tts(p); a = b"\0" * 1440 + a[1440:]      # every clip begins with a tiny click: silence its first 30 ms
-        pcm += a + b"\0" * int(24000 * 2 * 0.35)      # a short breath between pieces
+        a, model = tts(p); pcm += a + b"\0" * int(24000 * 2 * 0.35)      # a short breath between pieces
         time.sleep(7)       # stay under the per-minute limit
     wav = f"out/{num}_{name}.wav"
     with wave.open(wav, "wb") as w: w.setnchannels(1); w.setsampwidth(2); w.setframerate(24000); w.writeframes(pcm)

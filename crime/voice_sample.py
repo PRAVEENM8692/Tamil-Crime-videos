@@ -20,6 +20,14 @@ TEXT = ("1952-ஆம் வருஷம், ஆகஸ்ட் 29. மதிய�
         "இவர் யாரு? தலை எங்கே? இந்தப் பெட்டியை ரயில்ல வெச்சது யாரு? "
         "DNA டெஸ்ட் இல்லாத, CCTV இல்லாத காலத்துல, மெட்ராஸ் போலீஸ் இந்த வழக்கை எப்படி உடைச்சாங்க? கடைசி வரை பாருங்க.")
 
+def pcm_of(data):
+    """Gemini may answer with a complete WAV file (44-byte RIFF header first) instead of bare samples.
+    Played as samples, that header is a loud click at the start of every clip, so cut it off."""
+    if data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+        i = data.find(b"data", 12)
+        if i > 0: return data[i + 8:]
+    return data
+
 def tts(voice, style):
     last = ""
     for n in range(6):
@@ -28,7 +36,7 @@ def tts(voice, style):
             "contents": [{"parts": [{"text": STYLES[style] + TEXT}]}],
             "generationConfig": {"responseModalities": ["AUDIO"], "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}}}})
         if r.status_code < 400:
-            try: return base64.b64decode(r.json()["candidates"][0]["content"]["parts"][0]["inlineData"]["data"]), model
+            try: return pcm_of(base64.b64decode(r.json()["candidates"][0]["content"]["parts"][0]["inlineData"]["data"])), model
             except Exception as e: last = f"no audio in answer: {str(e)[:80]}"
         else:
             last = f"HTTP {r.status_code} {r.text[:300]}"
