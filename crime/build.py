@@ -103,6 +103,13 @@ run("ffmpeg", "-v", "error", "-y", *ins, "-i", BGM, "-filter_complex", fc, "-map
 # ---- the video
 run("ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", f"{WORK}/pics.txt", "-i", f"{WORK}/sound.wav",
     "-vf", f"fps={FPS},ass={WORK}/tags.ass,format=yuv420p", "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-tune", "stillimage",
-    "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", f"out/{NAME}.mp4")
+    "-c:a", "aac", "-b:a", "160k", "-shortest", "-movflags", "+faststart", f"{WORK}/main.mp4")
+
+# ---- channel intro (title clip, channel name, EPISODE card) right after the hook (script section 01)
+if plan.get("episode"):
+    import sys; sys.path.insert(0, "crime"); import intro
+    intro.splice(f"{WORK}/main.mp4", start[secs[1][0]][0] - GAP / 2, f"out/{NAME}.mp4", plan["episode"], WORK)
+else:
+    os.replace(f"{WORK}/main.mp4", f"out/{NAME}.mp4")
 print(f"clicks removed from the narration: {clicks}")
 print(f"video: out/{NAME}.mp4  {dur(f'out/{NAME}.mp4'):.1f} s, {len(shots)} pictures, {len(plan['tags'])} tags")

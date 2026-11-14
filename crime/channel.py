@@ -1,6 +1,7 @@
 """Channel settings for the crime story channel, through the YouTube Data API with this repo's YT_* secrets.
 DO = check (read only) | kids_off (channel 'made for kids' -> No) | private_old (make every public/unlisted video private)
-     | about (set description/keywords from crime/channel_about.json). Nothing is ever deleted."""
+     | about (set description/keywords from crime/channel_about.json)
+     | banner (upload assets/crime_banner.png as the channel banner) | about_banner (both). Nothing is ever deleted."""
 import json, os, sys
 import requests
 
@@ -52,11 +53,18 @@ elif DO == "private_old":
             st = {"privacyStatus": "private", "selfDeclaredMadeForKids": bool(v["status"].get("selfDeclaredMadeForKids", v["status"].get("madeForKids", False)))}
             if call("PUT", "videos", params={"part": "status"}, json={"id": v["id"], "status": st}) is not None: n += 1
     print("videos made private:", n)
-elif DO == "about":
+elif DO in ("about", "banner", "about_banner"):
     a = json.load(open("crime/channel_about.json", encoding="utf-8"))
     b = c.get("brandingSettings", {}).get("channel", {})
+    bs = c.get("brandingSettings", {})
     body = {"id": cid, "brandingSettings": {"channel": {"description": a["description"], "keywords": a.get("keywords", b.get("keywords", "")),
             "country": b.get("country", "IN"), "defaultLanguage": a.get("language", "ta")}}}
     if a.get("title"): body["brandingSettings"]["channel"]["title"] = a["title"]      # YouTube may ignore a name change made this way
+    if DO == "banner":
+        body["brandingSettings"]["channel"] = {k: v for k, v in b.items() if k in ("description", "keywords", "country", "defaultLanguage", "title")} or {"description": a["description"]}
+    if DO in ("banner", "about_banner"):
+        up = requests.post("https://www.googleapis.com/upload/youtube/v3/channelBanners/insert", headers={**H, "Content-Type": "image/png"}, data=open("assets/crime_banner.png", "rb").read(), timeout=180)
+        print("banner upload:", up.status_code, up.text[:200])
+        if up.status_code < 400: body["brandingSettings"]["image"] = {"bannerExternalUrl": up.json()["url"]}
     r = call("PUT", "channels", params={"part": "brandingSettings"}, json=body)
     print("about:", "updated; channel name is now: " + r["brandingSettings"]["channel"].get("title", "?") if r else "FAILED")
