@@ -10,12 +10,19 @@ END = " Clean floor, calm tidy scene. Nothing cut off at the frame edges. No tex
 
 def draw(prompt, dst):
     from PIL import Image
-    url = f"https://api.cloudflare.com/client/v4/accounts/{CF_ID}/ai/run/@cf/black-forest-labs/flux-1-schnell"
+    klein = (os.environ.get("MODEL") or "").startswith("klein")      # MODEL=klein: FLUX.2 klein 4B, drawn 16:9 (1280x720); default: FLUX.1 schnell, square
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CF_ID}/ai/run/@cf/black-forest-labs/" + ("flux-2-klein-4b" if klein else "flux-1-schnell")
     last = None
     for n in range(4):
         try:
-            body = json.dumps({"prompt": prompt[:2000], "steps": 4}).encode()
-            req = urllib.request.Request(url, body, {"Authorization": f"Bearer {CF_TOKEN}", "Content-Type": "application/json"})
+            if klein:
+                b = "----crimeboundary7f3a"
+                parts = {"prompt": prompt[:2000], "width": "1280", "height": "720"}
+                body = "".join(f'--{b}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n' for k, v in parts.items()).encode() + f"--{b}--\r\n".encode()
+                req = urllib.request.Request(url, body, {"Authorization": f"Bearer {CF_TOKEN}", "Content-Type": f"multipart/form-data; boundary={b}"})
+            else:
+                body = json.dumps({"prompt": prompt[:2000], "steps": 4}).encode()
+                req = urllib.request.Request(url, body, {"Authorization": f"Bearer {CF_TOKEN}", "Content-Type": "application/json"})
             raw = base64.b64decode(json.load(urllib.request.urlopen(req, timeout=180))["result"]["image"])
             Image.open(io.BytesIO(raw)).convert("RGB").save(dst, quality=90)
             return True

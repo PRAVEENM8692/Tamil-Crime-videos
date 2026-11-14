@@ -8,6 +8,9 @@ on:
       only:
         description: "Scene numbers to draw, comma separated (empty = all that are still missing)"
         default: ""
+      model:
+        description: "klein = FLUX.2 klein 4B drawn 16:9; empty = FLUX.1 schnell square"
+        default: ""
       redo:
         description: "Scene numbers to draw again even if a picture exists"
         default: ""
@@ -23,6 +26,7 @@ jobs:
       ONLY: ${{ github.event.inputs.only }}
       REDO: ${{ github.event.inputs.redo }}
       CASE: ${{ github.event.inputs.case }}
+      MODEL: ${{ github.event.inputs.model }}
       SCENES: crime/${{ github.event.inputs.case }}/scenes.json
     steps:
       - uses: actions/checkout@v4
