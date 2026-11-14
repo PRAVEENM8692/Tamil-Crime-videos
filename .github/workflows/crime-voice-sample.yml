@@ -1,0 +1,28 @@
+name: Crime Story Voice Sample
+on:
+  workflow_dispatch:
+    inputs:
+      voices:
+        description: "Gemini voice names, comma separated"
+        default: "Charon,Algenib"
+permissions:
+  contents: read
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      TTS_MODEL: ${{ vars.TTS_MODEL }}
+      SAMPLE_VOICES: ${{ github.event.inputs.voices }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update -y
+          sudo apt-get install -y ffmpeg
+          pip install requests
+      - run: python crime/voice_sample.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crime-voice-sample
+          path: out/*.mp3
