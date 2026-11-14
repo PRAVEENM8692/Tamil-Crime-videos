@@ -41,9 +41,10 @@ def splice(main, split, out, ep, work="work"):
         "-map", "[v]", "-map", "[au]", "-t", f"{10 + CARD}", "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-c:a", "aac", "-ar", "44100", "-pix_fmt", "yuv420p", intro], check=True)
     enc = ["-c:v", "libx264", "-preset", "medium", "-crf", "23", "-r", str(FPS), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-ar", "44100", "-ac", "2"]
     parts = []
+    fades = [f"afade=t=out:st={max(0, split - 0.35):.3f}:d=0.35", "afade=t=in:st=0:d=0.15", "afade=t=in:st=0:d=0.5"]      # the music must not be cut off or start abruptly at the seams
     for k, (src, a) in enumerate([(main, ["-t", f"{split:.3f}"]), (intro, []), (main, ["-ss", f"{split:.3f}"])]):
         f = f"{work}/seg{k}.mp4"
-        subprocess.run(["ffmpeg", "-v", "error", "-y", *(["-ss", a[1]] if a[:1] == ["-ss"] else []), "-i", src, *(a if a[:1] == ["-t"] else []), *enc, f], check=True); parts.append(f)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", *(["-ss", a[1]] if a[:1] == ["-ss"] else []), "-i", src, *(a if a[:1] == ["-t"] else []), "-af", fades[k], *enc, f], check=True); parts.append(f)
     open(f"{work}/segs.txt", "w").write("".join(f"file '{os.path.abspath(f)}'\n" for f in parts))
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", f"{work}/segs.txt", "-c", "copy", "-movflags", "+faststart", out], check=True)
 
