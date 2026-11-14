@@ -4,9 +4,9 @@ on:
     inputs:
       voices:
         description: "Gemini voice names, comma separated"
-        default: "Charon,Algenib"
+        default: "Charon"
 permissions:
-  contents: read
+  contents: write
 jobs:
   sample:
     runs-on: ubuntu-latest
@@ -26,3 +26,9 @@ jobs:
         with:
           name: crime-voice-sample
           path: out/*.mp3
+      - name: Save samples to the samples branch
+        run: |
+          mkdir -p /tmp/s && cp out/*.mp3 /tmp/s/
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git checkout --orphan samples && git rm -rfq . && cp /tmp/s/*.mp3 . && git add *.mp3
+          git commit -qm "voice samples" && git push -f origin samples
