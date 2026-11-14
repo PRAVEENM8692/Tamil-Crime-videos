@@ -10,7 +10,7 @@ END = " Clean floor, calm tidy scene. Nothing cut off at the frame edges. No tex
 
 def draw(prompt, dst):
     from PIL import Image
-    klein = (os.environ.get("MODEL") or "").startswith("klein")      # MODEL=klein: FLUX.2 klein 4B, drawn 16:9 (1280x720); default: FLUX.1 schnell, square
+    klein = (os.environ.get("MODEL") or "klein") != "schnell"      # default: FLUX.2 klein 4B drawn 16:9 (1280x720), about 105 neurons a picture; MODEL=schnell: FLUX.1 schnell, square, about 170
     url = f"https://api.cloudflare.com/client/v4/accounts/{CF_ID}/ai/run/@cf/black-forest-labs/" + ("flux-2-klein-4b" if klein else "flux-1-schnell")
     last = None
     for n in range(4):

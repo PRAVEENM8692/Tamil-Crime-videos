@@ -9,7 +9,7 @@ on:
         description: "Scene numbers to draw, comma separated (empty = all that are still missing)"
         default: ""
       model:
-        description: "klein = FLUX.2 klein 4B drawn 16:9; empty = FLUX.1 schnell square"
+        description: "empty = FLUX.2 klein 4B drawn 16:9 (default); schnell = old square FLUX.1 schnell"
         default: ""
       redo:
         description: "Scene numbers to draw again even if a picture exists"

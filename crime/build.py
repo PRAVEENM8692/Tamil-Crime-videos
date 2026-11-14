@@ -37,6 +37,8 @@ def frame(n):
     """The whole square picture in the middle of a 16:9 frame, over a blurred, darkened copy of itself."""
     out = f"{WORK}/f{n:02d}.jpg"
     im = Image.open(f"{PICS}/{n:02d}.jpg").convert("RGB")
+    if im.width > im.height * 1.5:          # a 16:9 picture (FLUX.2 klein): fill the whole frame, trimming the thin light border the model draws
+        m = 14; im.crop((m, m, im.width - m, im.height - m)).resize((W, H), Image.LANCZOS).save(out, quality=92); return out
     bg = im.resize((W, W)).crop((0, (W - H) // 2, W, (W - H) // 2 + H)).filter(ImageFilter.GaussianBlur(28)).point(lambda v: int(v * 0.45))
     fg = im.resize((H, H)); bg.paste(fg, ((W - H) // 2, 0)); bg.save(out, quality=92); return out
 with open(f"{WORK}/pics.txt", "w") as f:
